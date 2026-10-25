@@ -11,6 +11,7 @@
   "close_named_tab": "關閉{title}",
   "tab_rename": "分頁名稱",
   "tab_rename_placeholder": "頁面標題",
+  "tab_sleeping_named": "{title}（休眠中）",
   "essentials": "精選",
   "choose_split": "選擇第二個分頁以分割畫面",
   "ui_navigation": "導覽",

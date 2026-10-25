@@ -11,6 +11,7 @@
   "close_named_tab": "{title} sekmesini kapat",
   "tab_rename": "Sekme adı",
   "tab_rename_placeholder": "Sayfa başlığı",
+  "tab_sleeping_named": "{title} (uykuda)",
   "essentials": "Temeller",
   "choose_split": "Bölünmüş görünüm için ikinci bir sekme seçin",
   "ui_navigation": "Gezinme",

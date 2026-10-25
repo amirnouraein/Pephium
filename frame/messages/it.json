@@ -11,6 +11,7 @@
   "close_named_tab": "Chiudi {title}",
   "tab_rename": "Nome della scheda",
   "tab_rename_placeholder": "Titolo della pagina",
+  "tab_sleeping_named": "{title} (in sospensione)",
   "essentials": "Essenziali",
   "choose_split": "Scegli una seconda scheda per la vista divisa",
   "ui_navigation": "Navigazione",

@@ -157,3 +157,29 @@ test("the tab menu's Rename edits the name in place; Escape keeps it, empty clea
   await userEvent.keyboard("{Enter}");
   expect(rename).toHaveBeenCalledExactlyOnceWith(tab.id, "");
 });
+
+test("a sleeping tab fades its mark and title and says it is asleep", async () => {
+  const awake = tabFixture({ title: "Docs" });
+  const props = {
+    tab: awake,
+    active: false,
+    splitCandidate: false,
+    onSelect: vi.fn(),
+    onClose: vi.fn(),
+    onContextMenu: vi.fn(),
+    onPointerDown: vi.fn(),
+    onPointerMove: vi.fn(),
+    onPointerUp: vi.fn(),
+    onPointerCancel: vi.fn(),
+  };
+  const screen = await render(TabRow, props);
+  const favicon = () => screen.container.querySelector("[data-favicon]");
+  expect(favicon()?.hasAttribute("data-sleeping")).toBe(false);
+  await expect.element(screen.getByRole("button", { name: "Docs", exact: true })).toBeVisible();
+
+  await screen.rerender({ ...props, tab: { ...awake, availability: { state: "sleeping" } } });
+  expect(favicon()?.hasAttribute("data-sleeping")).toBe(true);
+  await expect
+    .element(screen.getByRole("button", { name: "Docs (sleeping)", exact: true }))
+    .toBeVisible();
+});

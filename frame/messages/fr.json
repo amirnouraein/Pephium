@@ -11,6 +11,7 @@
   "close_named_tab": "Fermer {title}",
   "tab_rename": "Nom de l’onglet",
   "tab_rename_placeholder": "Titre de la page",
+  "tab_sleeping_named": "{title} (en veille)",
   "essentials": "Essentiels",
   "choose_split": "Choisissez un second onglet pour l'écran partagé",
   "ui_navigation": "Navigation",

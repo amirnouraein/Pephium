@@ -11,6 +11,7 @@
   "close_named_tab": "{title} schließen",
   "tab_rename": "Tab-Name",
   "tab_rename_placeholder": "Seitentitel",
+  "tab_sleeping_named": "{title} (schläft)",
   "essentials": "Wichtig",
   "choose_split": "Wähle einen zweiten Tab für die geteilte Ansicht",
   "ui_navigation": "Navigation",

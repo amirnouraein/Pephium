@@ -11,6 +11,7 @@
   "close_named_tab": "Закрыть «{title}»",
   "tab_rename": "Название вкладки",
   "tab_rename_placeholder": "Заголовок страницы",
+  "tab_sleeping_named": "{title} (спит)",
   "essentials": "Основное",
   "choose_split": "Выберите вторую вкладку для разделенного экрана",
   "ui_navigation": "Навигация",

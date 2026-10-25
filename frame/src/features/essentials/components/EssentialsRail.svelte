@@ -76,9 +76,9 @@
         type="button"
         class="rail-site"
         data-plate
-        title={tab.title || m.untitled_tab()}
+        title={tabs.label(tab)}
         aria-current={active ? "page" : undefined}
-        aria-label={tab.title || m.untitled_tab()}
+        aria-label={tabs.label(tab)}
         oncontextmenu={(event) => handleContextMenu(event, tab)}
         onpointerdown={(event) => drag.down(event, tab.id)}
         onpointermove={(event) => drag.move(event)}
@@ -91,6 +91,7 @@
           image={favicons.image(tab.icon)}
           tone={favicons.tone(tab.icon)}
           loading={tab.loading}
+          sleeping={tabs.asleep(tab)}
           size={16}
           lit
           fallback={Globe02Icon}

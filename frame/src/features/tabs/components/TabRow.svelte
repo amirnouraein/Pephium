@@ -89,6 +89,7 @@
   class={["browse-tab", grouped && "browse-tab-grouped", className]}
   data-selected={active}
   data-split-candidate={splitCandidate}
+  data-sleeping={tabs.asleep(tab) || undefined}
   data-cascade={cascade < CASCADE_ROWS || undefined}
   style:--cascade={cascade}
 >
@@ -127,7 +128,7 @@
       class="tab-open"
       style:padding-inline-start={`${grouped ? 8 : 8 + Math.min(depth, 8) * 13}px`}
       aria-current={active ? "page" : undefined}
-      aria-label={tab.title || m.untitled_tab()}
+      aria-label={tabs.label(tab)}
       oncontextmenu={(event) => onContextMenu(event, tab)}
       onpointerdown={(event) => onPointerDown(event, tab)}
       onpointermove={onPointerMove}
@@ -140,6 +141,7 @@
         image={favicons.image(tab.icon)}
         tone={favicons.tone(tab.icon)}
         loading={tab.loading}
+        sleeping={tabs.asleep(tab)}
         size={16}
         lit={active}
         {fallback}
@@ -274,6 +276,11 @@
 
   .tab-label:dir(rtl) {
     mask-image: var(--mask-fade-end-rtl);
+  }
+
+  /* A sleeping page's title steps back with its mark, until it is opened. */
+  .browse-tab[data-sleeping] .tab-label {
+    color: var(--color-faint);
   }
 
   /* While the close control shows, the title dissolves before it rather than

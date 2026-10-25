@@ -11,6 +11,7 @@
   "close_named_tab": "关闭 {title}",
   "tab_rename": "标签页名称",
   "tab_rename_placeholder": "页面标题",
+  "tab_sleeping_named": "{title}（休眠中）",
   "essentials": "常用",
   "choose_split": "为分屏视图选择第二个标签页",
   "ui_navigation": "导航",

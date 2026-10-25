@@ -11,6 +11,7 @@
   "close_named_tab": "Close {title}",
   "tab_rename": "Tab name",
   "tab_rename_placeholder": "Page title",
+  "tab_sleeping_named": "{title} (sleeping)",
   "essentials": "Essentials",
   "choose_split": "Choose a second tab for split view",
   "ui_navigation": "Navigation",

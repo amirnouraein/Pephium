@@ -11,6 +11,7 @@
   "close_named_tab": "Cerrar {title}",
   "tab_rename": "Nombre de la pestaña",
   "tab_rename_placeholder": "Título de la página",
+  "tab_sleeping_named": "{title} (en reposo)",
   "essentials": "Esenciales",
   "choose_split": "Elige una segunda pestaña para la vista dividida",
   "ui_navigation": "Navegación",

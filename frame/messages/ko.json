@@ -11,6 +11,7 @@
   "close_named_tab": "{title} 닫기",
   "tab_rename": "탭 이름",
   "tab_rename_placeholder": "페이지 제목",
+  "tab_sleeping_named": "{title} (절전 중)",
   "essentials": "주요 항목",
   "choose_split": "분할 보기에 사용할 두 번째 탭을 선택하세요",
   "ui_navigation": "탐색",

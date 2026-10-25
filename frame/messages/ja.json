@@ -11,6 +11,7 @@
   "close_named_tab": "{title}を閉じる",
   "tab_rename": "タブの名前",
   "tab_rename_placeholder": "ページのタイトル",
+  "tab_sleeping_named": "{title}（スリープ中）",
   "essentials": "よく使う項目",
   "choose_split": "分割表示にするもう一つのタブを選択",
   "ui_navigation": "ナビゲーション",

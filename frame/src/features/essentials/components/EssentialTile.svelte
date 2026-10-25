@@ -1,5 +1,4 @@
 <script lang="ts">
-  import * as m from "$shared/i18n/messages";
   import { Globe02Icon } from "@hugeicons/core-free-icons";
   import type { TabView } from "$shared/ipc/bindings";
   import FavIcon from "$shared/ui/FavIcon";
@@ -7,6 +6,7 @@
   import CaptureControl from "$shared/ui/CaptureControl";
   import { stopCaptureFor } from "$domain/capture";
   import { tabGestures } from "$session/tab-gestures";
+  import { tabs } from "$domain/tabs";
 
   let {
     tab,
@@ -57,8 +57,8 @@
     type="button"
     data-plate
     aria-current={active ? "page" : undefined}
-    aria-label={tab.title || m.untitled_tab()}
-    title={tab.title || m.untitled_tab()}
+    aria-label={tabs.label(tab)}
+    title={tabs.label(tab)}
     oncontextmenu={(event) => onContextMenu(event, tab)}
     onpointerdown={(event) => onPointerDown(event, tab)}
     onpointermove={onPointerMove}
@@ -71,6 +71,7 @@
       image={favicons.image(tab.icon)}
       tone={favicons.tone(tab.icon)}
       loading={tab.loading}
+      sleeping={tabs.asleep(tab)}
       size={18}
       lit
       fallback={Globe02Icon}
