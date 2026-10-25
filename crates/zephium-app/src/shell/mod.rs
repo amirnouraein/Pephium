@@ -827,6 +827,9 @@ impl Shell {
             Command::TabAction { id, action } => {
                 let _ = self.operation_tab_action(id, action);
             }
+            Command::ReturnHome(id) => {
+                let _ = self.operation_return_home(id);
+            }
             Command::ClearSpace => {
                 let _ = self.operation_clear_space();
             }

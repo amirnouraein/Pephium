@@ -6,6 +6,7 @@
   import { favicons } from "$domain/favicons";
   import CaptureControl from "$shared/ui/CaptureControl";
   import { stopCaptureFor } from "$domain/capture";
+  import { tabGestures } from "$session/tab-gestures";
 
   let {
     tab,
@@ -64,6 +65,7 @@
     onpointerup={onPointerUp}
     onpointercancel={onPointerCancel}
     onclick={() => onSelect(tab.id)}
+    {...tabGestures(tab.id)}
   >
     <FavIcon
       image={favicons.image(tab.icon)}

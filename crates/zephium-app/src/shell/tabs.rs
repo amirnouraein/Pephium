@@ -119,6 +119,7 @@ impl TabPreferences {
 struct KeptSlot {
     placement: Placement,
     url: url::Url,
+    home: Option<url::Url>,
     title: String,
     before: Option<ItemId>,
 }
@@ -328,6 +329,7 @@ impl Shell {
         Some(KeptSlot {
             placement: item.placement,
             url: tab.url.clone()?,
+            home: tab.home.clone(),
             title: tab.title.clone(),
             before: roots.get(at + 1).copied(),
         })
@@ -345,6 +347,9 @@ impl Shell {
                 if let Some(before) = kept.before {
                     self.items
                         .move_tab_to_root(id, kept.placement, Some(before));
+                }
+                if let Some(home) = kept.home {
+                    self.items.set_home(id, home);
                 }
                 return;
             }

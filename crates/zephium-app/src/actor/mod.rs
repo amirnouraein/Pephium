@@ -1267,6 +1267,7 @@ fn tracked_operation_command(command: &Command) -> bool {
             | Command::Unsplit
             | Command::LeaveSplit(_)
             | Command::TabAction { .. }
+            | Command::ReturnHome(_)
             | Command::ClearSpace
             | Command::SuspendSpace
             | Command::Space(_)

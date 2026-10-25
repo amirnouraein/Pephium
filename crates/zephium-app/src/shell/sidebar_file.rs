@@ -6,7 +6,8 @@ use zephium_core::sidebar_file::{SidebarFile, SidebarNode, SidebarSpace};
 
 impl Shell {
     /// The focused profile's Essentials, then each space's pinned tabs, in
-    /// sidebar order. Only ordinary web pages are written.
+    /// sidebar order, each at the page it was kept at. Only ordinary web
+    /// pages are written.
     pub(super) fn export_sidebar(&self) -> Option<SidebarFile> {
         let profile = self.windows.focused()?.profile;
         let spaces = self
@@ -35,8 +36,9 @@ impl Shell {
                     children: self.sidebar_nodes(self.items.children(*id)),
                 }),
                 ItemKind::Tab(tab) => tab
-                    .url
+                    .home
                     .as_ref()
+                    .or(tab.url.as_ref())
                     .filter(|url| matches!(url.scheme(), "http" | "https"))
                     .map(|url| SidebarNode::Tab {
                         title: tab.title.clone(),

@@ -1713,6 +1713,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             tabs_close,
             tabs_set_essential,
             tabs_set_pinned,
+            tabs_duplicate,
+            tabs_return_home,
             space_clear,
             space_suspend,
             essentials_keep,
@@ -2777,6 +2779,37 @@ fn tabs_close(
         return rejected_operation();
     }
     dispatch_with_id(caller.app_handle(), &shell, &id, Command::Close)
+}
+
+/// Opens the same page in a new tab right after it, as the tab menu does.
+#[tauri::command]
+#[specta::specta]
+fn tabs_duplicate(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    id: String,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "tabs_duplicate") {
+        return rejected_operation();
+    }
+    dispatch_with_id(caller.app_handle(), &shell, &id, |id| Command::TabAction {
+        id,
+        action: TabAction::Duplicate,
+    })
+}
+
+/// Takes an Essential or pinned tab back to the page it was kept at.
+#[tauri::command]
+#[specta::specta]
+fn tabs_return_home(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    id: String,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "tabs_return_home") {
+        return rejected_operation();
+    }
+    dispatch_with_id(caller.app_handle(), &shell, &id, Command::ReturnHome)
 }
 
 #[tauri::command]

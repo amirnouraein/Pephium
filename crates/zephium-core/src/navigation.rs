@@ -116,6 +116,11 @@ pub fn is_allowed(url: &Url) -> bool {
             .is_some_and(|host| !RESERVED_HOSTS.contains(&host))
 }
 
+/// An ordinary http or https page, the only kind a tab is kept at.
+pub fn is_web_page(url: &Url) -> bool {
+    matches!(url.scheme(), "http" | "https") && is_allowed(url)
+}
+
 /// Gate for page-initiated navigations (the engine hands us a resolved URL).
 pub fn is_allowed_str(url: &str) -> bool {
     Url::parse(url).map(|u| is_allowed(&u)).unwrap_or(false)

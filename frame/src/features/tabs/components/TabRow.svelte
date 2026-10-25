@@ -13,7 +13,7 @@
   import Icon from "$shared/ui/Icon";
   import CaptureControl from "$shared/ui/CaptureControl";
   import { stopCaptureFor } from "$domain/capture";
-  import { closeOnMiddleClick } from "../lib/middle-click";
+  import { tabGestures } from "$session/tab-gestures";
 
   let {
     cascade = 0,
@@ -86,7 +86,7 @@
     onpointerup={onPointerUp}
     onpointercancel={onPointerCancel}
     onclick={() => onSelect(tab.id)}
-    {...closable ? closeOnMiddleClick(() => onClose(tab.id)) : {}}
+    {...tabGestures(tab.id)}
   >
     <FavIcon
       image={favicons.image(tab.icon)}

@@ -257,6 +257,10 @@ export const commands = {
 	tabsClose: (id: string) => __TAURI_INVOKE<OperationAdmission>("tabs_close", { id }),
 	tabsSetEssential: (id: string, essential: boolean, before: string | null) => __TAURI_INVOKE<OperationAdmission>("tabs_set_essential", { id, essential, before }),
 	tabsSetPinned: (id: string, pinned: boolean, before: string | null) => __TAURI_INVOKE<OperationAdmission>("tabs_set_pinned", { id, pinned, before }),
+	/**  Opens the same page in a new tab right after it, as the tab menu does. */
+	tabsDuplicate: (id: string) => __TAURI_INVOKE<OperationAdmission>("tabs_duplicate", { id }),
+	/**  Takes an Essential or pinned tab back to the page it was kept at. */
+	tabsReturnHome: (id: string) => __TAURI_INVOKE<OperationAdmission>("tabs_return_home", { id }),
 	/**  Closes the focused space's open tabs; pinned tabs and Essentials stay. */
 	spaceClear: () => __TAURI_INVOKE<OperationAdmission>("space_clear"),
 	/**  Unloads the focused space's tabs and Essentials but those on screen. */

@@ -51,6 +51,7 @@ impl Shell {
             Command::Unsplit => self.operation_unsplit(),
             Command::LeaveSplit(id) => self.operation_leave_split(id),
             Command::TabAction { id, action } => self.operation_tab_action(id, action),
+            Command::ReturnHome(id) => self.operation_return_home(id),
             Command::ClearSpace => self.operation_clear_space(),
             Command::SuspendSpace => self.operation_suspend_space(),
             Command::Space(command) => self.operation_space(*command),
@@ -265,6 +266,25 @@ impl Shell {
             native.merge(self.close(tab));
         }
         mutation_result(native)
+    }
+
+    /// Takes an Essential or pinned tab back to the page it was kept at. One
+    /// already there is left as it is.
+    pub(super) fn operation_return_home(&mut self, id: ItemId) -> OperationDisposition {
+        if !self.item_in_focused_scope(id) {
+            return operation_result(OperationOutcome::Rejected, OperationReason::InvalidScope);
+        }
+        let Some(home) = self.items.home(id).map(ToString::to_string) else {
+            return operation_result(OperationOutcome::NoOp, OperationReason::InvalidInput);
+        };
+        let at_home = self.items.tab(id).is_some_and(|tab| {
+            tab.has_view() && tab.url.as_ref().is_some_and(|url| url.as_str() == home)
+        });
+        if at_home {
+            return operation_result(OperationOutcome::NoOp, OperationReason::StateUnchanged);
+        }
+        let effects = self.items.navigate(id, &home);
+        mutation_result(self.commit(effects))
     }
 
     /// Closes every open tab of the focused space. Pinned tabs and Essentials

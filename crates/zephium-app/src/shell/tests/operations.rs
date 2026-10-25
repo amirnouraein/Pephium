@@ -1395,6 +1395,7 @@ fn keyboard_selection_walks_the_sidebar_from_favorites_through_pinned_folders() 
         title: host.into(),
         zoom: 1.0,
         last_active_ms: None,
+        home: None,
     };
     let pinned = Placement::Space {
         space,
@@ -2115,5 +2116,80 @@ fn suspending_a_space_unloads_its_tabs_but_the_one_in_front() {
     assert!(
         shell.items.tab(open).unwrap().has_view(),
         "opening loads it again"
+    );
+}
+
+#[test]
+fn a_kept_tab_returns_to_the_page_it_was_kept_at() {
+    let store = Arc::new(FakeStore::default());
+    let (mut shell, _engine, screen) = setup_with(store.clone());
+    shell.handle(Command::Bootstrap);
+    let pinned = active_id(&screen);
+    navigate_and_commit(&mut shell, pinned, "mail.example/inbox");
+    shell.handle(Command::SetTabPinned {
+        id: pinned,
+        pinned: true,
+        before: None,
+    });
+    let home = "https://mail.example/inbox";
+    navigate_and_commit(&mut shell, pinned, "mail.example/thread/7");
+    assert_eq!(shell.items.home(pinned).unwrap().as_str(), home);
+
+    // Moving among the kept places keeps the home; it survives a restart.
+    shell.handle(Command::SetTabEssential {
+        id: pinned,
+        essential: true,
+        before: None,
+    });
+    assert_eq!(shell.items.home(pinned).unwrap().as_str(), home);
+    shell.persist();
+    let saved = store.saved.lock().unwrap().clone().unwrap();
+    let restarted = Arc::new(FakeStore::default());
+    *restarted.saved.lock().unwrap() = Some(saved);
+    let (mut shell, _engine, _screen) = setup_with(restarted);
+    shell.handle(Command::Bootstrap);
+    assert_eq!(shell.items.home(pinned).unwrap().as_str(), home);
+    assert_eq!(
+        shell
+            .items
+            .tab(pinned)
+            .unwrap()
+            .url
+            .as_ref()
+            .unwrap()
+            .as_str(),
+        "https://mail.example/thread/7"
+    );
+
+    let back = shell.handle_operation(Command::ReturnHome(pinned));
+    assert_ne!(back.outcome, OperationOutcome::Rejected);
+    assert!(shell.items.pending_navigation_request(pinned).is_some());
+    shell.handle(Command::Engine(EngineEvent::UrlChanged {
+        id: pinned,
+        url: home.into(),
+    }));
+    present_committed(&mut shell, pinned, home);
+    assert_eq!(
+        shell.handle_operation(Command::ReturnHome(pinned)).outcome,
+        OperationOutcome::NoOp
+    );
+
+    // Closing it leaves it in place unloaded, still knowing its home.
+    navigate_and_commit(&mut shell, pinned, "mail.example/sent");
+    shell.handle(Command::Close(pinned));
+    let profile = shell.windows.focused().unwrap().profile;
+    let kept = shell.items.roots(Placement::Favorites { profile })[0];
+    assert_eq!(shell.items.home(kept).unwrap().as_str(), home);
+
+    // An open tab has no home to return to.
+    shell.handle(Command::SetTabEssential {
+        id: kept,
+        essential: false,
+        before: None,
+    });
+    assert_eq!(shell.items.home(kept), None);
+    assert_eq!(
+        shell.handle_operation(Command::ReturnHome(kept)).outcome,
+        OperationOutcome::NoOp
     );
 }

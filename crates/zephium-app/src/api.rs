@@ -415,6 +415,8 @@ pub enum Command {
         id: ItemId,
         action: TabAction,
     },
+    /// Takes an Essential or pinned tab back to the page it was kept at.
+    ReturnHome(ItemId),
     /// Closes every open tab of the focused space; pinned tabs and
     /// Essentials stay.
     ClearSpace,

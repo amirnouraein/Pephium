@@ -114,6 +114,9 @@ export function dispose() {
 export const open = () => void commands.tabsOpen();
 export const activate = (id: string) => void commands.tabsActivate(id);
 export const close = (id: string) => void commands.tabsClose(id);
+export const duplicate = (id: string) => void commands.tabsDuplicate(id);
+/** Takes an Essential or pinned tab back to the page it was kept at. */
+export const returnHome = (id: string) => void commands.tabsReturnHome(id);
 /** Closes the space's open tabs; pinned tabs and Essentials stay. */
 export const clearSpace = () => void commands.spaceClear();
 /** Unloads the space's tabs and Essentials but those on screen. Each stays

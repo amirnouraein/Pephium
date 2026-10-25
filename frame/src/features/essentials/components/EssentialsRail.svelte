@@ -12,6 +12,7 @@
   import CaptureControl from "$shared/ui/CaptureControl";
   import { stopCaptureFor } from "$domain/capture";
   import { favicons } from "$domain/favicons";
+  import { tabGestures } from "$session/tab-gestures";
 
   let {
     entries,
@@ -84,6 +85,7 @@
         onpointerup={(event) => drag.up(event)}
         onpointercancel={(event) => drag.cancel(event)}
         onclick={() => !drag.swallowClick() && onSelect(tab.id)}
+        {...tabGestures(tab.id)}
       >
         <FavIcon
           image={favicons.image(tab.icon)}

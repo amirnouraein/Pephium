@@ -107,6 +107,8 @@ enum BoundedKind {
         zoom: f64,
         #[serde(default)]
         last_active_ms: Option<u64>,
+        #[serde(default)]
+        home: Option<String>,
     },
     BrowserTab {
         page: zephium_core::item::BrowserOwnedTab,
@@ -139,9 +141,14 @@ where
         match &item.kind {
             BoundedKind::Folder { name } => name.len() <= MAX_NAME_BYTES,
             BoundedKind::Tab {
-                url, title, zoom, ..
+                url,
+                title,
+                zoom,
+                home,
+                ..
             } => {
                 url.len() <= MAX_URL_BYTES
+                    && home.as_ref().is_none_or(|home| home.len() <= MAX_URL_BYTES)
                     && title.len() <= MAX_TITLE_BYTES
                     && zoom.is_finite()
                     && (0.3..=3.0).contains(zoom)
@@ -210,11 +217,13 @@ impl From<BoundedSessionState> for SessionState {
                             title,
                             zoom,
                             last_active_ms,
+                            home,
                         } => PersistedKind::Tab {
                             url,
                             title,
                             zoom,
                             last_active_ms,
+                            home,
                         },
                         BoundedKind::BrowserTab { page } => PersistedKind::BrowserTab { page },
                     },
@@ -280,6 +289,7 @@ mod qa_settings_recovery_tests {
                         title: "Example".into(),
                         zoom: 1.0,
                         last_active_ms: None,
+                        home: None,
                     },
                 },
                 PersistedItem {
