@@ -1396,6 +1396,7 @@ fn keyboard_selection_walks_the_sidebar_from_favorites_through_pinned_folders() 
         zoom: 1.0,
         last_active_ms: None,
         home: None,
+        name: None,
     };
     let pinned = Placement::Space {
         space,
@@ -2192,4 +2193,85 @@ fn a_kept_tab_returns_to_the_page_it_was_kept_at() {
         shell.handle_operation(Command::ReturnHome(kept)).outcome,
         OperationOutcome::NoOp
     );
+}
+
+#[test]
+fn a_renamed_tab_shows_its_name_until_it_is_cleared() {
+    let store = Arc::new(FakeStore::default());
+    let (mut shell, _engine, screen) = setup_with(store.clone());
+    shell.handle(Command::Bootstrap);
+    let id = active_id(&screen);
+    navigate_and_commit(&mut shell, id, "mail.example/inbox");
+    shell.handle(Command::Engine(EngineEvent::TitleChanged {
+        id,
+        title: "Inbox (3)".into(),
+    }));
+    let shown = |screen: &Screen| {
+        last(screen)
+            .tabs
+            .into_iter()
+            .find(|tab| tab.id == id.to_string())
+            .unwrap()
+            .title
+    };
+
+    let rename = |name: &str| Command::RenameTab {
+        id,
+        name: name.into(),
+    };
+    assert_ne!(
+        shell.handle_operation(rename("  Mail ")).outcome,
+        OperationOutcome::Rejected
+    );
+    assert_eq!(shown(&screen), "Mail");
+    assert_eq!(
+        shell.handle_operation(rename("Mail")).outcome,
+        OperationOutcome::NoOp
+    );
+    // The page goes on titling itself underneath the name.
+    shell.handle(Command::Engine(EngineEvent::TitleChanged {
+        id,
+        title: "Inbox (4)".into(),
+    }));
+    assert_eq!(shown(&screen), "Mail");
+
+    // Pinned, the name survives a restart and closing the tab.
+    shell.handle(Command::SetTabPinned {
+        id,
+        pinned: true,
+        before: None,
+    });
+    shell.persist();
+    let saved = store.saved.lock().unwrap().clone().unwrap();
+    let restarted = Arc::new(FakeStore::default());
+    *restarted.saved.lock().unwrap() = Some(saved);
+    let (mut shell, _engine, screen) = setup_with(restarted);
+    shell.handle(Command::Bootstrap);
+    assert_eq!(shell.items.tab(id).unwrap().name.as_deref(), Some("Mail"));
+    shell.handle(Command::Close(id));
+    let space = shell.windows.focused().unwrap().space;
+    let kept = shell.items.roots(Placement::Space {
+        space,
+        section: SpaceSection::Pinned,
+    })[0];
+    assert_eq!(shell.items.tab(kept).unwrap().name.as_deref(), Some("Mail"));
+
+    // An empty name gives the page title back.
+    assert_ne!(
+        shell
+            .handle_operation(Command::RenameTab {
+                id: kept,
+                name: " ".into(),
+            })
+            .outcome,
+        OperationOutcome::Rejected
+    );
+    assert_eq!(shell.items.tab(kept).unwrap().name, None);
+    let title = last(&screen)
+        .tabs
+        .into_iter()
+        .find(|tab| tab.id == kept.to_string())
+        .unwrap()
+        .title;
+    assert_eq!(title, "Inbox (4)");
 }

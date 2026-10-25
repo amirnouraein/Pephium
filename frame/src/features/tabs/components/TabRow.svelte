@@ -14,6 +14,7 @@
   import CaptureControl from "$shared/ui/CaptureControl";
   import { stopCaptureFor } from "$domain/capture";
   import { tabGestures } from "$session/tab-gestures";
+  import { tabs } from "$domain/tabs";
 
   let {
     cascade = 0,
@@ -55,6 +56,23 @@
     onClose(tab.id);
   }
 
+  let draft = $state("");
+  let renaming = $derived(tabs.renaming() === tab.id);
+
+  function startRename(node: HTMLInputElement) {
+    draft = tab.title;
+    node.focus();
+    node.select();
+  }
+
+  // An emptied name gives the tab back its page title.
+  function finishRename(keep: boolean) {
+    if (!renaming) return;
+    tabs.stopRenaming();
+    const name = draft.trim();
+    if (keep && name !== tab.title) tabs.rename(tab.id, name);
+  }
+
   // A tab with no page yet is a different thing from a page whose site simply
   // supplies no icon, and the row should say which.
   let fallback = $derived(
@@ -74,30 +92,61 @@
   data-cascade={cascade < CASCADE_ROWS || undefined}
   style:--cascade={cascade}
 >
-  <button
-    type="button"
-    class="tab-open"
-    style:padding-inline-start={`${grouped ? 8 : 8 + Math.min(depth, 8) * 13}px`}
-    aria-current={active ? "page" : undefined}
-    aria-label={tab.title || m.untitled_tab()}
-    oncontextmenu={(event) => onContextMenu(event, tab)}
-    onpointerdown={(event) => onPointerDown(event, tab)}
-    onpointermove={onPointerMove}
-    onpointerup={onPointerUp}
-    onpointercancel={onPointerCancel}
-    onclick={() => onSelect(tab.id)}
-    {...tabGestures(tab.id)}
-  >
-    <FavIcon
-      image={favicons.image(tab.icon)}
-      tone={favicons.tone(tab.icon)}
-      loading={tab.loading}
-      size={16}
-      lit={active}
-      {fallback}
-    />
-    <span data-zephium-tab-label class="tab-label">{tab.title}</span>
-  </button>
+  {#if renaming}
+    <span
+      class="tab-open"
+      style:padding-inline-start={`${grouped ? 8 : 8 + Math.min(depth, 8) * 13}px`}
+    >
+      <FavIcon
+        image={favicons.image(tab.icon)}
+        tone={favicons.tone(tab.icon)}
+        size={16}
+        lit={active}
+        {fallback}
+      />
+      <input
+        class="tab-rename"
+        aria-label={m.tab_rename()}
+        placeholder={m.tab_rename_placeholder()}
+        maxlength={256}
+        bind:value={draft}
+        use:startRename
+        onkeydown={(event) => {
+          if (event.key === "Enter") finishRename(true);
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            finishRename(false);
+          }
+        }}
+        onblur={() => finishRename(true)}
+      />
+    </span>
+  {:else}
+    <button
+      type="button"
+      class="tab-open"
+      style:padding-inline-start={`${grouped ? 8 : 8 + Math.min(depth, 8) * 13}px`}
+      aria-current={active ? "page" : undefined}
+      aria-label={tab.title || m.untitled_tab()}
+      oncontextmenu={(event) => onContextMenu(event, tab)}
+      onpointerdown={(event) => onPointerDown(event, tab)}
+      onpointermove={onPointerMove}
+      onpointerup={onPointerUp}
+      onpointercancel={onPointerCancel}
+      onclick={() => onSelect(tab.id)}
+      {...tabGestures(tab.id)}
+    >
+      <FavIcon
+        image={favicons.image(tab.icon)}
+        tone={favicons.tone(tab.icon)}
+        loading={tab.loading}
+        size={16}
+        lit={active}
+        {fallback}
+      />
+      <span data-zephium-tab-label class="tab-label">{tab.title}</span>
+    </button>
+  {/if}
   {#if tab.capture}
     <span style:margin-inline-end={closable ? "28px" : "4px"}>
       {#key tab.capture.navigation_id}
@@ -191,6 +240,21 @@
      rows above and below at a 4px gap. */
   .tab-open:focus-visible {
     outline-offset: -2px;
+  }
+
+  .tab-rename {
+    flex: 1;
+    min-width: 0;
+    height: 22px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: var(--radius-field);
+    background: var(--color-field-hover);
+    box-shadow: var(--shadow-field-focus);
+    color: var(--color-text);
+    font: inherit;
+    outline: none;
+    user-select: text;
   }
 
   /*

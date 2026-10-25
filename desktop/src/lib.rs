@@ -1715,6 +1715,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             tabs_set_pinned,
             tabs_duplicate,
             tabs_return_home,
+            tabs_rename,
             space_clear,
             space_suspend,
             essentials_keep,
@@ -2306,6 +2307,7 @@ const MAX_LAUNCHER_QUERY_BYTES: usize = 2 * 1024;
 const MAX_COMMAND_ID_BYTES: usize = 128;
 const MAX_KEPT_SITE_ID_BYTES: usize = 32;
 const MAX_PROFILE_NAME_BYTES: usize = 256;
+const MAX_TAB_NAME_BYTES: usize = zephium_core::session::MAX_SESSION_NAME_CHARS * 4;
 const MAX_WINDOW_COORDINATE: f64 = 1_000_000.0;
 use zephium_core::layout::{MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH};
 
@@ -2810,6 +2812,26 @@ fn tabs_return_home(
         return rejected_operation();
     }
     dispatch_with_id(caller.app_handle(), &shell, &id, Command::ReturnHome)
+}
+
+/// Shows `name` in place of the tab's page title; an empty one gives the page
+/// title back.
+#[tauri::command]
+#[specta::specta]
+fn tabs_rename(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    id: String,
+    name: String,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "tabs_rename") || !bounded(&name, MAX_TAB_NAME_BYTES)
+    {
+        return rejected_operation();
+    }
+    dispatch_with_id(caller.app_handle(), &shell, &id, |id| Command::RenameTab {
+        id,
+        name,
+    })
 }
 
 #[tauri::command]
@@ -3737,6 +3759,14 @@ fn execute_tab_menu_action(
     let Some(id) = target.take() else {
         return rejected_operation();
     };
+    if action == "rename" {
+        // Chrome edits the name in place, on the row it mirrored as the target.
+        return if try_emit_to_privileged(app, MAIN_LABEL, EVENT_UI, &TAB_MENU_RENAME_COMMAND) {
+            accepted_ui_operation()
+        } else {
+            rejected_operation()
+        };
+    }
     if action == "copyLink" {
         // The clipboard write stays in privileged chrome, which already holds
         // the authoritative URL for this tab. Native never handles page text.
@@ -5460,6 +5490,9 @@ fn build_add_menu(
 /// armed tab. Native code never handles page-derived text for the clipboard.
 const TAB_MENU_COPY_LINK_COMMAND: &str = "tab.copyLink";
 
+/// Delivered to privileged chrome, which edits the armed tab's name in place.
+const TAB_MENU_RENAME_COMMAND: &str = "tab.rename";
+
 /// Registry command delivered to the frame, which owns sidebar presentation.
 const SIDEBAR_COMPACT_COMMAND: &str = "sidebar.toggleCompact";
 
@@ -5487,7 +5520,7 @@ const BOOKMARK_MENU_ACTION_IDS: [&str; 6] = [
     "bookmarkmenu.removeFolder",
 ];
 
-const TAB_MENU_ACTION_IDS: [&str; 12] = [
+const TAB_MENU_ACTION_IDS: [&str; 13] = [
     "tabmenu.reload",
     "tabmenu.duplicate",
     "tabmenu.copyLink",
@@ -5500,6 +5533,7 @@ const TAB_MENU_ACTION_IDS: [&str; 12] = [
     "tabmenu.closeBelow",
     "tabmenu.pin",
     "tabmenu.unpin",
+    "tabmenu.rename",
 ];
 
 /// What the tab menu can offer for the tab it opens on, as the sidebar sees
@@ -5666,6 +5700,12 @@ fn build_tab_menu(
     let duplicate = item(1, "Duplicate Tab", context.page)?;
     let copy_link = item(2, "Copy Link", context.page)?;
     let bookmark = item(3, "Bookmark Tab", context.page)?;
+    // An Essential shows no title to rename.
+    let rename = if context.essential {
+        None
+    } else {
+        Some(item(12, "Rename Tab", context.page)?)
+    };
     let first = PredefinedMenuItem::separator(handle)?;
     let keep = if context.essential {
         item(5, "Remove from Essentials", true)?
@@ -5693,7 +5733,11 @@ fn build_tab_menu(
         spaces::tab_menu_section(handle, &format!("tabmenu.{}", spaces::TAB_MENU_MOVE))?
     };
     let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> =
-        vec![&reload, &duplicate, &copy_link, &bookmark, &first];
+        vec![&reload, &duplicate, &copy_link, &bookmark];
+    if let Some(rename) = &rename {
+        items.push(rename);
+    }
+    items.push(&first);
     if let Some(pin) = &pin {
         items.push(pin);
     }
@@ -7424,7 +7468,8 @@ mod tests {
                 "tabmenu.closeOthers",
                 "tabmenu.closeBelow",
                 "tabmenu.pin",
-                "tabmenu.unpin"
+                "tabmenu.unpin",
+                "tabmenu.rename"
             ]
         );
         // Context-menu actions carry their own target and must never collide

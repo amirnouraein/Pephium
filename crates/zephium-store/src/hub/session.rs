@@ -109,6 +109,8 @@ enum BoundedKind {
         last_active_ms: Option<u64>,
         #[serde(default)]
         home: Option<String>,
+        #[serde(default)]
+        name: Option<String>,
     },
     BrowserTab {
         page: zephium_core::item::BrowserOwnedTab,
@@ -145,10 +147,14 @@ where
                 title,
                 zoom,
                 home,
+                name,
                 ..
             } => {
                 url.len() <= MAX_URL_BYTES
                     && home.as_ref().is_none_or(|home| home.len() <= MAX_URL_BYTES)
+                    && name
+                        .as_ref()
+                        .is_none_or(|name| name.len() <= MAX_NAME_BYTES)
                     && title.len() <= MAX_TITLE_BYTES
                     && zoom.is_finite()
                     && (0.3..=3.0).contains(zoom)
@@ -218,12 +224,14 @@ impl From<BoundedSessionState> for SessionState {
                             zoom,
                             last_active_ms,
                             home,
+                            name,
                         } => PersistedKind::Tab {
                             url,
                             title,
                             zoom,
                             last_active_ms,
                             home,
+                            name,
                         },
                         BoundedKind::BrowserTab { page } => PersistedKind::BrowserTab { page },
                     },
@@ -290,6 +298,7 @@ mod qa_settings_recovery_tests {
                         zoom: 1.0,
                         last_active_ms: None,
                         home: None,
+                        name: None,
                     },
                 },
                 PersistedItem {

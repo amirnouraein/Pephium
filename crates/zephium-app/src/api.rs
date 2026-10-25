@@ -417,6 +417,12 @@ pub enum Command {
     },
     /// Takes an Essential or pinned tab back to the page it was kept at.
     ReturnHome(ItemId),
+    /// Shows `name` in place of the tab's page title; an empty one gives the
+    /// page title back.
+    RenameTab {
+        id: ItemId,
+        name: String,
+    },
     /// Closes every open tab of the focused space; pinned tabs and
     /// Essentials stay.
     ClearSpace,

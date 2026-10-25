@@ -81,6 +81,10 @@ pub enum PersistedKind {
         /// snapshots older than it: a kept tab without one is home.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         home: Option<String>,
+        /// What the person named the tab. Absent for a tab never renamed and
+        /// on snapshots older than names.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
     },
     /// Browser-owned pages have no navigable URL or native content view.
     BrowserTab {
@@ -226,6 +230,7 @@ fn collect(items: &Items, placement: Placement, out: &mut Vec<PersistedItem>) {
                             .as_ref()
                             .filter(|home| *home != url)
                             .map(ToString::to_string),
+                        name: tab.name.clone(),
                     },
                 },
             },
@@ -316,6 +321,7 @@ pub fn restore(state: SessionState) -> Restored {
                 zoom,
                 last_active_ms,
                 home,
+                name,
             } => {
                 let Ok(url) = Url::parse(&url) else {
                     continue;
@@ -335,6 +341,9 @@ pub fn restore(state: SessionState) -> Restored {
                     .filter(navigation::is_web_page);
                 tab.url = Some(url);
                 tab.title = sanitize_page_title(&title);
+                tab.name = name
+                    .map(|name| bounded_name(name.trim(), ""))
+                    .filter(|name| !name.is_empty());
                 tab.zoom = if zoom.is_finite() {
                     zoom.clamp(0.3, 3.0)
                 } else {
@@ -765,6 +774,73 @@ mod tests {
     }
 
     #[test]
+    fn a_tabs_name_survives_restore_and_blank_or_legacy_ones_have_none() {
+        let profile = ProfileId::from(1);
+        let space = SpaceId::from(2);
+        let pinned = Placement::Space {
+            space,
+            section: SpaceSection::Pinned,
+        };
+        let tab = |id: u128, name: Option<&str>| PersistedItem {
+            id: ItemId::from(id),
+            parent: None,
+            placement: if id == 10 { pinned } else { today(space) },
+            kind: PersistedKind::Tab {
+                url: format!("https://example.com/{id}"),
+                title: "Page".into(),
+                zoom: 1.0,
+                last_active_ms: None,
+                home: None,
+                name: name.map(Into::into),
+            },
+        };
+        let state = SessionState {
+            profiles: vec![PersistedProfile {
+                id: profile,
+                name: "P".into(),
+                kind: ProfileKind::Default,
+            }],
+            spaces: vec![PersistedSpace {
+                id: space,
+                profile,
+                name: "S".into(),
+                look: Default::default(),
+            }],
+            items: vec![
+                tab(10, Some("Mail")),
+                tab(11, Some("  Work\u{202e}\n ")),
+                tab(12, Some("   ")),
+                tab(13, None),
+            ],
+            ..SessionState::default()
+        };
+        let restored = restore(state.clone());
+        let name = |id: u128| restored.items.tab(ItemId::from(id)).unwrap().name.clone();
+        assert_eq!(name(10).as_deref(), Some("Mail"));
+        assert_eq!(name(11).as_deref(), Some("Work"));
+        assert_eq!(name(12), None);
+        assert_eq!(name(13), None);
+        let again = snapshot(
+            &restored.profiles,
+            &restored.spaces,
+            &restored.items,
+            None,
+            None,
+            None,
+        );
+        assert!(matches!(
+            &again.items[0].kind,
+            PersistedKind::Tab { name: Some(name), .. } if name == "Mail"
+        ));
+
+        // Snapshots from before names had none to write.
+        let json = serde_json::to_string(&state.items[3]).unwrap();
+        assert!(!json.contains("name"));
+        let legacy: PersistedItem = serde_json::from_str(&json).unwrap();
+        assert_eq!(legacy, state.items[3]);
+    }
+
+    #[test]
     fn kept_tabs_restore_their_home_and_older_ones_are_kept_at_their_page() {
         let profile = ProfileId::from(1);
         let space = SpaceId::from(2);
@@ -782,6 +858,7 @@ mod tests {
                 zoom: 1.0,
                 last_active_ms: None,
                 home: home.map(Into::into),
+                name: None,
             },
         };
         let state = SessionState {
@@ -831,6 +908,7 @@ mod tests {
                 zoom: 1.0,
                 last_active_ms,
                 home: None,
+                name: None,
             },
         };
         let state = SessionState {
@@ -890,6 +968,7 @@ mod tests {
                     zoom: 1.0,
                     last_active_ms: None,
                     home: None,
+                    name: None,
                 },
             }],
             active_space: Some(SpaceId::from(2)),
@@ -951,6 +1030,7 @@ mod tests {
                         zoom: f64::INFINITY,
                         last_active_ms: None,
                         home: None,
+                        name: None,
                     },
                 },
                 PersistedItem {
@@ -963,6 +1043,7 @@ mod tests {
                         zoom: 1.0,
                         last_active_ms: None,
                         home: None,
+                        name: None,
                     },
                 },
                 PersistedItem {
@@ -975,6 +1056,7 @@ mod tests {
                         zoom: 1.0,
                         last_active_ms: None,
                         home: None,
+                        name: None,
                     },
                 },
             ],

@@ -1614,10 +1614,17 @@ fn admissible_session(session: &SessionState) -> bool {
         && session.items.iter().all(|item| match &item.kind {
             PersistedKind::Folder { name } => name.len() <= MAX_NAME_BYTES,
             PersistedKind::Tab {
-                url, title, zoom, ..
+                url,
+                title,
+                zoom,
+                name,
+                ..
             } => {
                 url.len() <= MAX_URL_BYTES
                     && title.len() <= MAX_TITLE_BYTES
+                    && name
+                        .as_ref()
+                        .is_none_or(|name| name.len() <= MAX_NAME_BYTES)
                     && zoom.is_finite()
                     && (0.3..=3.0).contains(zoom)
             }

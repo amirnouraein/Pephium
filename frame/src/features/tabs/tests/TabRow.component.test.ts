@@ -6,12 +6,15 @@ import { tabFixture, revision } from "$shared/testing/fixtures";
 import { emitNativeEvent } from "$shared/testing/native-events";
 import { events } from "$shared/ipc/native-events";
 import { commands } from "$shared/ipc/bindings";
+import { tabs } from "$domain/tabs";
 import TabRow from "../components/TabRow.svelte";
 
 // The row asks native directly; the spies stand in for it.
 const admitted = { accepted: true, operation_id: null };
 const duplicate = vi.spyOn(commands, "tabsDuplicate").mockResolvedValue(admitted);
 const returnHome = vi.spyOn(commands, "tabsReturnHome").mockResolvedValue(admitted);
+const rename = vi.spyOn(commands, "tabsRename").mockResolvedValue(admitted);
+vi.spyOn(commands, "tabMenuPopup").mockResolvedValue(true);
 
 afterEach(() => vi.clearAllMocks());
 
@@ -125,4 +128,32 @@ test("a double-click asks native to take the tab back to its kept page", async (
   const { tab, screen } = renderRow(false);
   await userEvent.dblClick((await screen).getByRole("button", { name: "Docs", exact: true }));
   expect(returnHome).toHaveBeenCalledExactlyOnceWith(tab.id);
+});
+
+test("the tab menu's Rename edits the name in place; Escape keeps it, empty clears it", async () => {
+  const { tab, screen } = renderRow(false);
+  const page = await screen;
+  const startRename = () => {
+    tabs.openTabMenu(tab.id, 0, 0);
+    tabs.renameMenuTarget();
+    flushSync();
+  };
+
+  startRename();
+  const field = page.getByRole("textbox", { name: "Tab name" });
+  await expect.element(field).toHaveValue("Docs");
+  await userEvent.keyboard("{Escape}");
+  expect(rename).not.toHaveBeenCalled();
+  await expect.element(page.getByRole("button", { name: "Docs", exact: true })).toBeVisible();
+
+  startRename();
+  await userEvent.fill(page.getByRole("textbox", { name: "Tab name" }), "  Mail ");
+  await userEvent.keyboard("{Enter}");
+  expect(rename).toHaveBeenCalledExactlyOnceWith(tab.id, "Mail");
+
+  rename.mockClear();
+  startRename();
+  await userEvent.clear(page.getByRole("textbox", { name: "Tab name" }));
+  await userEvent.keyboard("{Enter}");
+  expect(rename).toHaveBeenCalledExactlyOnceWith(tab.id, "");
 });

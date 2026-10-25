@@ -261,6 +261,11 @@ export const commands = {
 	tabsDuplicate: (id: string) => __TAURI_INVOKE<OperationAdmission>("tabs_duplicate", { id }),
 	/**  Takes an Essential or pinned tab back to the page it was kept at. */
 	tabsReturnHome: (id: string) => __TAURI_INVOKE<OperationAdmission>("tabs_return_home", { id }),
+	/**
+	 *  Shows `name` in place of the tab's page title; an empty one gives the page
+	 *  title back.
+	 */
+	tabsRename: (id: string, name: string) => __TAURI_INVOKE<OperationAdmission>("tabs_rename", { id, name }),
 	/**  Closes the focused space's open tabs; pinned tabs and Essentials stay. */
 	spaceClear: () => __TAURI_INVOKE<OperationAdmission>("space_clear"),
 	/**  Unloads the focused space's tabs and Essentials but those on screen. */

@@ -270,6 +270,7 @@ impl Hub {
                         zoom,
                         last_active_ms: None,
                         home: None,
+                        name: None,
                     },
                     _ => {
                         return Err(invalid_data("compatibility item has an invalid kind"));

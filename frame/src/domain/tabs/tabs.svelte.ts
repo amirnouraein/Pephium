@@ -117,6 +117,13 @@ export const close = (id: string) => void commands.tabsClose(id);
 export const duplicate = (id: string) => void commands.tabsDuplicate(id);
 /** Takes an Essential or pinned tab back to the page it was kept at. */
 export const returnHome = (id: string) => void commands.tabsReturnHome(id);
+/** Shows `name` in place of the page title; an empty one gives it back. */
+export const rename = (id: string, name: string) => void commands.tabsRename(id, name);
+
+// The row whose name is being edited in place, after the tab menu's Rename.
+let renamingId = $state<string | null>(null);
+export const renaming = () => renamingId;
+export const stopRenaming = () => (renamingId = null);
 /** Closes the space's open tabs; pinned tabs and Essentials stay. */
 export const clearSpace = () => void commands.spaceClear();
 /** Unloads the space's tabs and Essentials but those on screen. Each stays
@@ -191,6 +198,12 @@ export function openTabMenu(id: string, x: number, y: number) {
 /** The browser interface's own menu; `page` says a web page is in front. */
 export function openChromeMenu(x: number, y: number, page: boolean) {
   void commands.chromeMenuPopup(x, y, page, canSplitActive());
+}
+
+/** Starts editing the name of the tab the menu was opened on. */
+export function renameMenuTarget() {
+  renamingId = menuTarget;
+  menuTarget = null;
 }
 
 export function copyMenuTargetLink(): Promise<boolean> {

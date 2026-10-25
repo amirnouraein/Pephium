@@ -20,6 +20,7 @@ fn tab(id: ItemId, parent: Option<ItemId>, placement: Placement, host: &str) -> 
             zoom: 1.0,
             last_active_ms: None,
             home: None,
+            name: None,
         },
     }
 }

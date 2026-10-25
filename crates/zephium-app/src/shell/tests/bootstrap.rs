@@ -168,6 +168,7 @@ fn bootstrap_never_creates_views_for_foreign_focus_or_split_references() {
             zoom: 1.0,
             last_active_ms: None,
             home: None,
+            name: None,
         },
     };
     let store = Arc::new(FakeStore {

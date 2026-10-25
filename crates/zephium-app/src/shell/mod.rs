@@ -830,6 +830,9 @@ impl Shell {
             Command::ReturnHome(id) => {
                 let _ = self.operation_return_home(id);
             }
+            Command::RenameTab { id, name } => {
+                let _ = self.operation_rename_tab(id, &name);
+            }
             Command::ClearSpace => {
                 let _ = self.operation_clear_space();
             }

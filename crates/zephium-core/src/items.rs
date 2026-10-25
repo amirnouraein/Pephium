@@ -611,6 +611,20 @@ impl Items {
         true
     }
 
+    /// Names a tab, or with an empty name gives it back its page title.
+    /// Whether the name changed.
+    pub fn set_name(&mut self, id: ItemId, name: &str) -> bool {
+        let Some(tab) = self.tab_mut(id) else {
+            return false;
+        };
+        let name = Some(crate::session::bounded_name(name.trim(), "")).filter(|n| !n.is_empty());
+        if tab.name == name {
+            return false;
+        }
+        tab.name = name;
+        true
+    }
+
     pub fn set_loading(&mut self, id: ItemId, loading: bool) {
         if let Some(tab) = self.tab_mut(id) {
             tab.loading = loading;

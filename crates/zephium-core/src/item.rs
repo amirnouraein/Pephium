@@ -127,6 +127,8 @@ impl Placement {
 pub struct TabState {
     pub content: TabContent,
     pub title: String,
+    /// What the person named the tab, shown in place of the page title.
+    pub name: Option<String>,
     pub url: Option<Url>,
     /// The web page an Essential or pinned tab was kept at, which it can
     /// return to however far it has wandered. None for any other tab.
@@ -175,6 +177,7 @@ impl TabState {
         Self {
             content: TabContent::Web,
             title: "New Tab".into(),
+            name: None,
             url: None,
             home: None,
             loading: false,

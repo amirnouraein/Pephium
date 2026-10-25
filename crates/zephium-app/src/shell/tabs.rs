@@ -121,6 +121,7 @@ struct KeptSlot {
     url: url::Url,
     home: Option<url::Url>,
     title: String,
+    name: Option<String>,
     before: Option<ItemId>,
 }
 
@@ -331,6 +332,7 @@ impl Shell {
             url: tab.url.clone()?,
             home: tab.home.clone(),
             title: tab.title.clone(),
+            name: tab.name.clone(),
             before: roots.get(at + 1).copied(),
         })
     }
@@ -350,6 +352,9 @@ impl Shell {
                 }
                 if let Some(home) = kept.home {
                     self.items.set_home(id, home);
+                }
+                if let Some(name) = kept.name {
+                    self.items.set_name(id, &name);
                 }
                 return;
             }

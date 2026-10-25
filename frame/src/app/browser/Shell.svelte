@@ -216,6 +216,7 @@
     untrack(() => {
       if (command.id === "split.choose") splitting = true;
       if (command.id === "tab.copyLink") void tabs.copyMenuTargetLink().then(linkCopied);
+      if (command.id === "tab.rename") tabs.renameMenuTarget();
       if (command.id === "page.copyLink") void tabs.copyActiveLink().then(linkCopied);
       if (command.id === "find.show") findInPage.show(tabs.activeId());
       if (command.id === "find.next") findInPage.step(true, tabs.activeId());

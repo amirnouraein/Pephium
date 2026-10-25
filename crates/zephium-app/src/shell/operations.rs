@@ -52,6 +52,7 @@ impl Shell {
             Command::LeaveSplit(id) => self.operation_leave_split(id),
             Command::TabAction { id, action } => self.operation_tab_action(id, action),
             Command::ReturnHome(id) => self.operation_return_home(id),
+            Command::RenameTab { id, name } => self.operation_rename_tab(id, &name),
             Command::ClearSpace => self.operation_clear_space(),
             Command::SuspendSpace => self.operation_suspend_space(),
             Command::Space(command) => self.operation_space(*command),
@@ -285,6 +286,24 @@ impl Shell {
         }
         let effects = self.items.navigate(id, &home);
         mutation_result(self.commit(effects))
+    }
+
+    /// Names a web tab, or with an empty name gives it back its page title.
+    pub(super) fn operation_rename_tab(&mut self, id: ItemId, name: &str) -> OperationDisposition {
+        if !self.item_in_focused_scope(id) {
+            return operation_result(OperationOutcome::Rejected, OperationReason::InvalidScope);
+        }
+        if self
+            .items
+            .tab(id)
+            .is_none_or(|tab| tab.content != zephium_core::item::TabContent::Web)
+        {
+            return operation_result(OperationOutcome::Rejected, OperationReason::InvalidInput);
+        }
+        if !self.items.set_name(id, name) {
+            return operation_result(OperationOutcome::NoOp, OperationReason::StateUnchanged);
+        }
+        mutation_result(self.commit(Vec::new()))
     }
 
     /// Closes every open tab of the focused space. Pinned tabs and Essentials

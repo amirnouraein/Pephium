@@ -326,6 +326,7 @@ fn decode_item(item: StoredItem) -> Option<PersistedItem> {
             zoom: 1.0,
             last_active_ms: None,
             home: None,
+            name: None,
         },
         _ => return None,
     };
@@ -369,6 +370,7 @@ fn decode_v1(v1: V1Session) -> Option<SessionState> {
                 zoom: 1.0,
                 last_active_ms: None,
                 home: None,
+                name: None,
             },
         })
         .collect();
