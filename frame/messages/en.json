@@ -3594,5 +3594,20 @@
   "assist_step_refused": "Zephium doesn’t type into passwords or follow links to other sites",
   "assist_step_unsuitable": "That isn’t something this step can use",
   "assist_step_page_changed": "The page changed first",
-  "assist_step_no_effect": "It ran, but nothing changed"
+  "assist_step_no_effect": "It ran, but nothing changed",
+  "sidebar_file_title": "Essentials and pinned tabs",
+  "sidebar_file_help": "Save them to a file, or add them from one. Importing only adds what isn’t already here.",
+  "sidebar_file_export": "Export…",
+  "sidebar_file_import": "Import…",
+  "sidebar_file_saved": "Saved to a file",
+  "sidebar_file_added": "Added {count} tabs",
+  "sidebar_file_added_one": "Added 1 tab",
+  "sidebar_file_current": "Everything in that file is already here",
+  "sidebar_file_too_large": "That file is too large to be a Zephium export",
+  "sidebar_file_not_export": "That file isn’t an export of Essentials and pinned tabs",
+  "sidebar_file_newer": "That file comes from a newer version of Zephium. Update Zephium to import it.",
+  "sidebar_file_too_many": "That file holds more tabs, folders or spaces than Zephium can take",
+  "sidebar_file_invalid": "That file has an address or a name Zephium can’t use",
+  "sidebar_file_unreadable": "Zephium couldn’t read or write that file",
+  "sidebar_file_unavailable": "Zephium couldn’t do that right now. Try again from a regular window."
 }

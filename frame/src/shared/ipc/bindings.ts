@@ -589,6 +589,16 @@ export const commands = {
 	importCancel: () => __TAURI_INVOKE<boolean>("import_cancel"),
 	/**  Opens the system setting a source needs (Safari: Full Disk Access). */
 	importOpenPermission: (source: string) => __TAURI_INVOKE<boolean>("import_open_permission", { source }),
+	/**
+	 *  Saves the focused profile's Essentials and pinned tabs where the person
+	 *  chooses. Chrome never sees the file or its path.
+	 */
+	sidebarExport: () => __TAURI_INVOKE<SidebarFileReplyView>("sidebar_export"),
+	/**
+	 *  Merges a file `sidebar_export` wrote into the focused profile: nothing
+	 *  already there is repeated or replaced, and new tabs wait unloaded.
+	 */
+	sidebarImport: () => __TAURI_INVOKE<SidebarFileReplyView>("sidebar_import"),
 	resourceCloseReady: (token: string, success: boolean) => __TAURI_INVOKE<boolean>("resource_close_ready", { token, success }),
 	tabDrop: (id: string, x: number | null, y: number | null) => __TAURI_INVOKE<OperationAdmission>("tab_drop", { id, x, y }),
 	dividerGrab: (x: number | null, y: number | null) => __TAURI_INVOKE<void>("divider_grab", { x, y }),
@@ -2773,6 +2783,17 @@ export type ShutSiteView = {
 	site: string,
 	icon: IconRef | null,
 };
+
+/**  Why moving Essentials and pinned tabs through a file did not happen. */
+export type SidebarFileProblemView = "too_large" | "not_sidebar_file" | "newer_version" | "too_many" | "invalid" |
+/**  The file could not be read or written. */
+"unreadable" |
+/**  No window to take it, or a profile that keeps nothing. */
+"unavailable";
+
+export type SidebarFileReplyView =
+/**  Tabs written, or tabs an import added. */
+{ outcome: "done"; tabs: number } | { outcome: "cancelled" } | { outcome: "failed"; problem: SidebarFileProblemView };
 
 /**
  *  One extension's button, carried into the rail's menu. The frame holds the

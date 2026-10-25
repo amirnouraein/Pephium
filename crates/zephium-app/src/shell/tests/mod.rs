@@ -2056,6 +2056,7 @@ mod profiles;
 mod projections;
 mod search;
 mod shutdown;
+mod sidebar_file;
 mod spaces;
 mod tabs;
 mod time;

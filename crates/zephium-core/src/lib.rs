@@ -23,6 +23,7 @@ pub mod profiles;
 pub mod runtime_security;
 pub mod search;
 pub mod session;
+pub mod sidebar_file;
 pub mod spaces;
 pub mod split;
 /// Time on the web and focus sessions.

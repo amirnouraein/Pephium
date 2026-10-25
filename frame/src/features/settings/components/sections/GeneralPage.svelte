@@ -6,6 +6,7 @@
   import PreviewAction from "../PreviewAction.svelte";
   import PreferenceSelect from "../PreferenceSelect.svelte";
   import ImportBrowserData from "../ImportBrowserData.svelte";
+  import SidebarFile from "../SidebarFile.svelte";
   import DownloadPreferences from "../DownloadPreferences.svelte";
   import LoginItemRow from "../LoginItemRow.svelte";
   import LanguageRow from "../LanguageRow.svelte";
@@ -66,6 +67,7 @@
 <SettingsGroup title={m.section_languages()}><LanguageRow /></SettingsGroup>
 <SettingsGroup title={m.general_data_group()}>
   <ImportBrowserData />
+  <SidebarFile />
 </SettingsGroup>
 <DownloadPreferences />
 {#if showPreviews}

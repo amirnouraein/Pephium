@@ -3594,5 +3594,20 @@
   "assist_step_refused": "O Zephium não digita em senhas nem segue links para outros sites",
   "assist_step_unsuitable": "Essa etapa não consegue usar isso",
   "assist_step_page_changed": "A página mudou antes",
-  "assist_step_no_effect": "Foi executada, mas nada mudou"
+  "assist_step_no_effect": "Foi executada, mas nada mudou",
+  "sidebar_file_title": "Essenciais e abas fixadas",
+  "sidebar_file_help": "Salve em um arquivo ou adicione a partir de um. A importação só adiciona o que ainda não está aqui.",
+  "sidebar_file_export": "Exportar…",
+  "sidebar_file_import": "Importar…",
+  "sidebar_file_saved": "Salvo em um arquivo",
+  "sidebar_file_added": "{count} abas adicionadas",
+  "sidebar_file_added_one": "1 aba adicionada",
+  "sidebar_file_current": "Tudo desse arquivo já está aqui",
+  "sidebar_file_too_large": "Esse arquivo é grande demais para ser uma exportação do Zephium",
+  "sidebar_file_not_export": "Esse arquivo não é uma exportação de Essenciais e abas fixadas",
+  "sidebar_file_newer": "Esse arquivo vem de uma versão mais nova do Zephium. Atualize o Zephium para importá-lo.",
+  "sidebar_file_too_many": "Esse arquivo tem mais abas, pastas ou espaços do que o Zephium comporta",
+  "sidebar_file_invalid": "Esse arquivo tem um endereço ou nome que o Zephium não pode usar",
+  "sidebar_file_unreadable": "O Zephium não conseguiu ler ou gravar esse arquivo",
+  "sidebar_file_unavailable": "O Zephium não conseguiu fazer isso agora. Tente de novo em uma janela normal."
 }

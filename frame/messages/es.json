@@ -3594,5 +3594,20 @@
   "assist_step_refused": "Zephium no escribe en contraseñas ni sigue enlaces a otros sitios",
   "assist_step_unsuitable": "Este paso no puede usar eso",
   "assist_step_page_changed": "La página cambió antes",
-  "assist_step_no_effect": "Se ejecutó, pero nada cambió"
+  "assist_step_no_effect": "Se ejecutó, pero nada cambió",
+  "sidebar_file_title": "Esenciales y pestañas fijadas",
+  "sidebar_file_help": "Guárdalas en un archivo o añádelas desde uno. Al importar solo se añade lo que aún no tienes.",
+  "sidebar_file_export": "Exportar…",
+  "sidebar_file_import": "Importar…",
+  "sidebar_file_saved": "Guardado en un archivo",
+  "sidebar_file_added": "Se añadieron {count} pestañas",
+  "sidebar_file_added_one": "Se añadió 1 pestaña",
+  "sidebar_file_current": "Todo lo de ese archivo ya está aquí",
+  "sidebar_file_too_large": "Ese archivo es demasiado grande para ser una exportación de Zephium",
+  "sidebar_file_not_export": "Ese archivo no es una exportación de Esenciales y pestañas fijadas",
+  "sidebar_file_newer": "Ese archivo viene de una versión más reciente de Zephium. Actualiza Zephium para importarlo.",
+  "sidebar_file_too_many": "Ese archivo tiene más pestañas, carpetas o espacios de los que Zephium admite",
+  "sidebar_file_invalid": "Ese archivo tiene una dirección o un nombre que Zephium no puede usar",
+  "sidebar_file_unreadable": "Zephium no pudo leer ni escribir ese archivo",
+  "sidebar_file_unavailable": "Zephium no pudo hacerlo ahora. Vuelve a intentarlo desde una ventana normal."
 }

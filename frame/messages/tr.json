@@ -3594,5 +3594,20 @@
   "assist_step_refused": "Zephium parola alanlarına yazmaz ve başka sitelere giden bağlantıları izlemez",
   "assist_step_unsuitable": "Bu adım bunu kullanamıyor",
   "assist_step_page_changed": "Sayfa daha önce değişti",
-  "assist_step_no_effect": "Çalıştı ama hiçbir şey değişmedi"
+  "assist_step_no_effect": "Çalıştı ama hiçbir şey değişmedi",
+  "sidebar_file_title": "Sık Kullanılanlar ve sabitlenmiş sekmeler",
+  "sidebar_file_help": "Bunları bir dosyaya kaydedin ya da bir dosyadan ekleyin. İçe aktarma yalnızca henüz olmayanları ekler.",
+  "sidebar_file_export": "Dışa aktar…",
+  "sidebar_file_import": "İçe aktar…",
+  "sidebar_file_saved": "Bir dosyaya kaydedildi",
+  "sidebar_file_added": "{count} sekme eklendi",
+  "sidebar_file_added_one": "1 sekme eklendi",
+  "sidebar_file_current": "O dosyadaki her şey zaten burada",
+  "sidebar_file_too_large": "Bu dosya bir Zephium dışa aktarımı olamayacak kadar büyük",
+  "sidebar_file_not_export": "Bu dosya bir Sık Kullanılanlar ve sabitlenmiş sekmeler dışa aktarımı değil",
+  "sidebar_file_newer": "Bu dosya Zephium’un daha yeni bir sürümünden geliyor. İçe aktarmak için Zephium’u güncelleyin.",
+  "sidebar_file_too_many": "Bu dosyada Zephium’un alabileceğinden fazla sekme, klasör veya alan var",
+  "sidebar_file_invalid": "Bu dosyada Zephium’un kullanamayacağı bir adres veya ad var",
+  "sidebar_file_unreadable": "Zephium bu dosyayı okuyamadı veya yazamadı",
+  "sidebar_file_unavailable": "Zephium bunu şu anda yapamadı. Normal bir pencereden yeniden deneyin."
 }

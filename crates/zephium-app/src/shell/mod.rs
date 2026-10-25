@@ -170,6 +170,7 @@ impl AgentLifecycleOwner {
 
 mod browser_pages;
 mod kept_sites;
+mod sidebar_file;
 mod spaces;
 mod work_pane;
 
@@ -943,6 +944,9 @@ impl Shell {
                 done,
             } => self.bookmark_call(expected_profile, *call, done),
             Command::Import { work, done } => self.import_into_focused(*work, done),
+            Command::ExportSidebar { reply } => {
+                let _ = reply.try_send(self.export_sidebar());
+            }
             Command::AttachFaviconProber(attachment) => self.attach_favicon_prober(attachment.0),
             Command::ProbeFavicons { profile, origins } => self.probe_favicons(profile, origins),
             Command::FaviconProbed {

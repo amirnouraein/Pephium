@@ -3594,5 +3594,20 @@
   "assist_step_refused": "Zephiumはパスワード欄への入力や、他のサイトへのリンクの移動はしません",
   "assist_step_unsuitable": "この手順では使えない要素でした",
   "assist_step_page_changed": "先にページが変わりました",
-  "assist_step_no_effect": "実行しましたが、何も変わりませんでした"
+  "assist_step_no_effect": "実行しましたが、何も変わりませんでした",
+  "sidebar_file_title": "よく使う項目とピン留めしたタブ",
+  "sidebar_file_help": "ファイルに保存したり、ファイルから追加したりできます。読み込みでは、まだないものだけが追加されます。",
+  "sidebar_file_export": "書き出す…",
+  "sidebar_file_import": "読み込む…",
+  "sidebar_file_saved": "ファイルに保存しました",
+  "sidebar_file_added": "{count} 個のタブを追加しました",
+  "sidebar_file_added_one": "1 個のタブを追加しました",
+  "sidebar_file_current": "そのファイルの内容はすべてすでにあります",
+  "sidebar_file_too_large": "そのファイルは Zephium の書き出しファイルとしては大きすぎます",
+  "sidebar_file_not_export": "そのファイルはよく使う項目とピン留めしたタブの書き出しファイルではありません",
+  "sidebar_file_newer": "そのファイルは新しいバージョンの Zephium で作られています。読み込むには Zephium をアップデートしてください。",
+  "sidebar_file_too_many": "そのファイルには Zephium が受け入れられる以上のタブ、フォルダ、スペースが含まれています",
+  "sidebar_file_invalid": "そのファイルには Zephium が使えないアドレスか名前が含まれています",
+  "sidebar_file_unreadable": "Zephium はそのファイルを読み書きできませんでした",
+  "sidebar_file_unavailable": "今はそれを実行できませんでした。通常のウインドウからもう一度お試しください。"
 }

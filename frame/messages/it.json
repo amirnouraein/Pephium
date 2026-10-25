@@ -3594,5 +3594,20 @@
   "assist_step_refused": "Zephium non scrive nelle password né segue link verso altri siti",
   "assist_step_unsuitable": "Questo passaggio non può usare quell'elemento",
   "assist_step_page_changed": "La pagina è cambiata prima",
-  "assist_step_no_effect": "Eseguito, ma non è cambiato nulla"
+  "assist_step_no_effect": "Eseguito, ma non è cambiato nulla",
+  "sidebar_file_title": "Essenziali e schede fissate",
+  "sidebar_file_help": "Salvale in un file o aggiungile da un file. L’importazione aggiunge solo ciò che manca.",
+  "sidebar_file_export": "Esporta…",
+  "sidebar_file_import": "Importa…",
+  "sidebar_file_saved": "Salvato in un file",
+  "sidebar_file_added": "{count} schede aggiunte",
+  "sidebar_file_added_one": "1 scheda aggiunta",
+  "sidebar_file_current": "Tutto ciò che c’è in quel file è già qui",
+  "sidebar_file_too_large": "Quel file è troppo grande per essere un’esportazione di Zephium",
+  "sidebar_file_not_export": "Quel file non è un’esportazione di Essenziali e schede fissate",
+  "sidebar_file_newer": "Quel file proviene da una versione più recente di Zephium. Aggiorna Zephium per importarlo.",
+  "sidebar_file_too_many": "Quel file contiene più schede, cartelle o spazi di quanti Zephium ne possa accogliere",
+  "sidebar_file_invalid": "Quel file contiene un indirizzo o un nome che Zephium non può usare",
+  "sidebar_file_unreadable": "Zephium non è riuscito a leggere o scrivere quel file",
+  "sidebar_file_unavailable": "Zephium non può farlo ora. Riprova da una finestra normale."
 }

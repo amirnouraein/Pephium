@@ -316,6 +316,11 @@ pub enum Command {
         work: Box<crate::store_reads::ImportWork>,
         done: ImportCompletion,
     },
+    /// The focused profile's Essentials and each of its spaces' pinned tabs,
+    /// as a file would hold them; None without a focused window.
+    ExportSidebar {
+        reply: SyncSender<Option<zephium_core::sidebar_file::SidebarFile>>,
+    },
     /// Hands the shell its notes service, once, after startup.
     AttachNotes(NotesAttachment),
     NoteCall {

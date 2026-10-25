@@ -1795,6 +1795,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             browser_import::import_start,
             browser_import::import_cancel,
             browser_import::import_open_permission,
+            browser_import::sidebar_export,
+            browser_import::sidebar_import,
             resource_close_ready,
             tab_drop,
             divider_grab,

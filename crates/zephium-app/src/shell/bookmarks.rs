@@ -235,10 +235,17 @@ impl Shell {
             done.finish(None);
             return;
         };
-        if let ImportWork::Essentials(sites) = work {
-            done.finish(Some(self.keep_imported_sites(profile, sites)));
-            return;
-        }
+        let work = match work {
+            ImportWork::Essentials(sites) => {
+                done.finish(Some(self.keep_imported_sites(profile, sites)));
+                return;
+            }
+            ImportWork::Sidebar(file) => {
+                done.finish(Some(self.merge_sidebar_file(profile, file)));
+                return;
+            }
+            work => work,
+        };
         if self.bookmarks.imports.len() >= MAX_PENDING_BOOKMARK_CALLS {
             done.finish(None);
             return;

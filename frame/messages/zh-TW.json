@@ -3594,5 +3594,20 @@
   "assist_step_refused": "Zephium 不會在密碼欄位中輸入，也不會開啟指向其他網站的連結",
   "assist_step_unsuitable": "這一步無法使用該元素",
   "assist_step_page_changed": "網頁已先變更",
-  "assist_step_no_effect": "已執行，但沒有任何變化"
+  "assist_step_no_effect": "已執行，但沒有任何變化",
+  "sidebar_file_title": "精選與釘選的分頁",
+  "sidebar_file_help": "將它們儲存到檔案，或從檔案加入。匯入只會加入這裡還沒有的內容。",
+  "sidebar_file_export": "匯出…",
+  "sidebar_file_import": "匯入…",
+  "sidebar_file_saved": "已儲存到檔案",
+  "sidebar_file_added": "已加入 {count} 個分頁",
+  "sidebar_file_added_one": "已加入 1 個分頁",
+  "sidebar_file_current": "該檔案中的所有內容都已存在",
+  "sidebar_file_too_large": "該檔案太大，不像是 Zephium 匯出的檔案",
+  "sidebar_file_not_export": "該檔案不是精選與釘選分頁的匯出檔案",
+  "sidebar_file_newer": "該檔案來自較新版本的 Zephium。請更新 Zephium 後再匯入。",
+  "sidebar_file_too_many": "該檔案包含的分頁、資料夾或空間超過 Zephium 可容納的數量",
+  "sidebar_file_invalid": "該檔案包含 Zephium 無法使用的網址或名稱",
+  "sidebar_file_unreadable": "Zephium 無法讀取或寫入該檔案",
+  "sidebar_file_unavailable": "Zephium 目前無法執行此操作。請在一般視窗中重試。"
 }

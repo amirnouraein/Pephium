@@ -3594,5 +3594,20 @@
   "assist_step_refused": "Zephium не вводить паролі й не переходить за посиланнями на інші сайти",
   "assist_step_unsuitable": "Цей крок не може це використати",
   "assist_step_page_changed": "Сторінка встигла змінитися",
-  "assist_step_no_effect": "Виконано, але нічого не змінилося"
+  "assist_step_no_effect": "Виконано, але нічого не змінилося",
+  "sidebar_file_title": "«Основні» й закріплені вкладки",
+  "sidebar_file_help": "Збережіть їх у файл або додайте з файлу. Під час імпорту додається лише те, чого ще немає.",
+  "sidebar_file_export": "Експорт…",
+  "sidebar_file_import": "Імпорт…",
+  "sidebar_file_saved": "Збережено у файл",
+  "sidebar_file_added": "Додано вкладок: {count}",
+  "sidebar_file_added_one": "Додано 1 вкладку",
+  "sidebar_file_current": "Усе з цього файлу вже є",
+  "sidebar_file_too_large": "Цей файл завеликий для експорту Zephium",
+  "sidebar_file_not_export": "Цей файл не є експортом «Основних» і закріплених вкладок",
+  "sidebar_file_newer": "Цей файл створено новішою версією Zephium. Оновіть Zephium, щоб імпортувати його.",
+  "sidebar_file_too_many": "У цьому файлі більше вкладок, папок або просторів, ніж може прийняти Zephium",
+  "sidebar_file_invalid": "У цьому файлі є адреса або назва, яку Zephium не може використати",
+  "sidebar_file_unreadable": "Zephium не вдалося прочитати або записати цей файл",
+  "sidebar_file_unavailable": "Зараз цього зробити не вдалося. Спробуйте ще раз зі звичайного вікна."
 }

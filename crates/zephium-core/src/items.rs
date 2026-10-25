@@ -162,6 +162,18 @@ impl Items {
         url: Url,
         title: &str,
     ) -> bool {
+        self.insert_unloaded_tab_in(id, placement, None, url, title)
+    }
+
+    /// As `insert_unloaded_tab`, at the end of `parent` when one is named.
+    pub fn insert_unloaded_tab_in(
+        &mut self,
+        id: ItemId,
+        placement: Placement,
+        parent: Option<ItemId>,
+        url: Url,
+        title: &str,
+    ) -> bool {
         if !navigation::is_allowed(&url) {
             return false;
         }
@@ -170,7 +182,7 @@ impl Items {
         tab.title = sanitize_page_title(title);
         self.insert(Item {
             id,
-            parent: None,
+            parent,
             placement,
             kind: ItemKind::Tab(tab),
         })

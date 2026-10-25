@@ -3594,5 +3594,20 @@
   "assist_step_refused": "Zephium tippt nicht in Passwortfelder und folgt keinen Links auf andere Seiten",
   "assist_step_unsuitable": "Damit kann dieser Schritt nichts anfangen",
   "assist_step_page_changed": "Die Seite hat sich vorher geändert",
-  "assist_step_no_effect": "Ausgeführt, aber nichts hat sich geändert"
+  "assist_step_no_effect": "Ausgeführt, aber nichts hat sich geändert",
+  "sidebar_file_title": "Essentials und angeheftete Tabs",
+  "sidebar_file_help": "Speichere sie in einer Datei oder füge sie aus einer hinzu. Beim Import kommt nur hinzu, was noch fehlt.",
+  "sidebar_file_export": "Exportieren…",
+  "sidebar_file_import": "Importieren…",
+  "sidebar_file_saved": "In einer Datei gespeichert",
+  "sidebar_file_added": "{count} Tabs hinzugefügt",
+  "sidebar_file_added_one": "1 Tab hinzugefügt",
+  "sidebar_file_current": "Alles aus dieser Datei ist schon vorhanden",
+  "sidebar_file_too_large": "Diese Datei ist zu groß für einen Zephium-Export",
+  "sidebar_file_not_export": "Diese Datei ist kein Export von Essentials und angehefteten Tabs",
+  "sidebar_file_newer": "Diese Datei stammt aus einer neueren Zephium-Version. Aktualisiere Zephium, um sie zu importieren.",
+  "sidebar_file_too_many": "Diese Datei enthält mehr Tabs, Ordner oder Spaces, als Zephium aufnehmen kann",
+  "sidebar_file_invalid": "Diese Datei enthält eine Adresse oder einen Namen, den Zephium nicht verwenden kann",
+  "sidebar_file_unreadable": "Zephium konnte diese Datei nicht lesen oder schreiben",
+  "sidebar_file_unavailable": "Das geht gerade nicht. Versuche es in einem normalen Fenster erneut."
 }
