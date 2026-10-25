@@ -2258,7 +2258,7 @@ export type PageAssistSuggestionV1 = "summarize" | "key_points" | "key_numbers" 
  *  Closed page capability names rendered by browser-owned chrome. Native
  *  permission strings and page-controlled labels never cross this boundary.
  */
-export type PagePermissionKindView = "camera" | "microphone";
+export type PagePermissionKindView = "camera" | "microphone" | "geolocation";
 
 export type PagePermissionPromptChanged = PagePermissionPromptView;
 

@@ -146,6 +146,9 @@ fn core_request_from_components(
         WryRequestKind::Single(wry::PermissionKind::Microphone) => {
             PagePermissionRequestKind::Single(PagePermissionKind::Microphone)
         }
+        WryRequestKind::Single(wry::PermissionKind::Geolocation) => {
+            PagePermissionRequestKind::Single(PagePermissionKind::Geolocation)
+        }
         WryRequestKind::CameraAndMicrophone => PagePermissionRequestKind::CameraAndMicrophone,
         _ => return None,
     };
@@ -396,7 +399,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn native_request_mapping_accepts_only_supported_structured_media() {
+    fn native_request_mapping_accepts_only_supported_structured_capabilities() {
         let camera = core_request_from_components(
             7,
             "https",
@@ -410,6 +413,18 @@ mod tests {
         assert_eq!(
             camera.kind,
             PagePermissionRequestKind::Single(PagePermissionKind::Camera)
+        );
+        assert_eq!(
+            core_request_from_components(
+                11,
+                "https",
+                "maps.example",
+                None,
+                WryRequestKind::Single(wry::PermissionKind::Geolocation),
+            )
+            .unwrap()
+            .kind,
+            PagePermissionRequestKind::Single(PagePermissionKind::Geolocation)
         );
         assert_eq!(
             core_request_from_components(

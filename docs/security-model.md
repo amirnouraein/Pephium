@@ -310,13 +310,13 @@ JavaScript history/window calls. Native URL/history observers are mandatory on a
 platforms. They deduplicate bounded state and close the view if an engine source escapes
 the URL policy, so chrome never presents a pre-navigation URL over a forbidden document.
 
-**Permissions and downloads.** Geolocation, notifications and other permissions
+**Permissions and downloads.** Notifications and other permissions
 routed through Wry's permission callback are denied in every view. Display
 capture uses separate native paths: ordinary human OS-picker consent is not a
 camera/microphone grant, and a deny callback alone does not prove agent display
-capture containment. That boundary still requires native qualification. Camera and microphone are
-the only exceptions, and only for ordinary human tabs. On Windows, those tabs defer
-camera and microphone to WebView2's own origin-labelled prompt
+capture containment. That boundary still requires native qualification. Camera, microphone and
+geolocation are the only exceptions, and only for ordinary human tabs. On Windows, those tabs defer
+camera, microphone and geolocation to WebView2's own origin-labelled prompt
 (`PermissionResponse::Prompt`); Zephium stores nothing in the profile, and work,
 extension and privileged views stay deny-only. On macOS, Zephium replaces Wry's
 permission callback with a browser-owned broker that is on by default (the
@@ -334,8 +334,10 @@ tests, not by shipped behavior. macOS capture indicators observe native Active/M
 state and stop the exact resident document through WebKit; provisional navigation
 does not hide ongoing capture. Windows has no equivalent verified capture-state
 projection. Packaged device-permission, stop and iframe-lifetime checks remain required. Extension pages and offscreen documents deny media
-capture. The bundle carries camera and microphone usage descriptions and the matching
-`desktop/Entitlements.plist` entries; those grant no authority by themselves.
+capture. The bundle carries camera, microphone and location usage descriptions and the matching
+`desktop/Entitlements.plist` entries; those grant no authority by themselves. Geolocation
+uses the same macOS broker; the CoreLocation provider WebKit needs on macOS starts only
+after the page is granted, so the system location prompt never precedes Zephium's.
 [WebKit requests system validation before its UI-client policy
 decision](https://github.com/WebKit/WebKit/blob/main/Source/WebKit/UIProcess/UserMediaPermissionRequestManagerProxy.cpp),
 so even a native Deny can first prompt or wait on device consent, and the

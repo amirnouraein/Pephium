@@ -44,6 +44,7 @@ pub(crate) use fullscreen::{exit as exit_fullscreen, state as fullscreen_state};
 mod content_filter;
 mod credentials;
 mod find;
+pub(crate) mod geolocation;
 mod native;
 mod navigation;
 pub(crate) use apps::{external_app_name, open_external_app};

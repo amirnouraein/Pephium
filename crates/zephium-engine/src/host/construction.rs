@@ -1755,6 +1755,8 @@ impl EngineHost {
                 return None;
             }
         };
+        #[cfg(target_os = "macos")]
+        crate::platform::macos::geolocation::install(&crate::platform::imp::native_webview(&view));
         // Lets Safari's Web Inspector reach tab pages and the content scripts
         // running in them while diagnosing extensions.
         #[cfg(target_os = "macos")]
@@ -2632,7 +2634,11 @@ fn to_wry(r: Rect) -> wry::Rect {
 
 pub(super) fn raw_content_permission(kind: wry::PermissionKind) -> wry::PermissionResponse {
     match kind {
-        wry::PermissionKind::Camera | wry::PermissionKind::Microphone if cfg!(windows) => {
+        wry::PermissionKind::Camera
+        | wry::PermissionKind::Microphone
+        | wry::PermissionKind::Geolocation
+            if cfg!(windows) =>
+        {
             wry::PermissionResponse::Prompt
         }
         _ => wry::PermissionResponse::Deny,

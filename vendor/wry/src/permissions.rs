@@ -17,7 +17,10 @@ pub enum PermissionKind {
   /// - **Windows**: Supported via `COREWEBVIEW2_PERMISSION_KIND_GEOLOCATION`.
   /// - **Linux**: Supported via `GeolocationPermissionRequest`.
   /// - **Android**: Supported via `WebChromeClient.onGeolocationPermissionsShowPrompt`.
-  /// - **macOS / iOS**: Not yet supported by platform backends.
+  /// - **macOS**: Supported via WKUIDelegate's geolocation origin callback
+  ///   (public from macOS 27, `WKUIDelegatePrivate` before). The embedder
+  ///   still supplies the position source.
+  /// - **iOS**: Not yet supported by platform backends.
   Geolocation,
   /// Notifications permission.
   ///

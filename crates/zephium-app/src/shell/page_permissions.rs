@@ -140,11 +140,13 @@ impl PagePermissionPromptState {
 fn request_kinds(kind: PagePermissionRequestKind) -> &'static [PagePermissionKind] {
     const CAMERA: &[PagePermissionKind] = &[PagePermissionKind::Camera];
     const MICROPHONE: &[PagePermissionKind] = &[PagePermissionKind::Microphone];
+    const GEOLOCATION: &[PagePermissionKind] = &[PagePermissionKind::Geolocation];
     const MEDIA: &[PagePermissionKind] =
         &[PagePermissionKind::Camera, PagePermissionKind::Microphone];
     match kind {
         PagePermissionRequestKind::Single(PagePermissionKind::Camera) => CAMERA,
         PagePermissionRequestKind::Single(PagePermissionKind::Microphone) => MICROPHONE,
+        PagePermissionRequestKind::Single(PagePermissionKind::Geolocation) => GEOLOCATION,
         PagePermissionRequestKind::CameraAndMicrophone => MEDIA,
         PagePermissionRequestKind::Single(_) => &[],
     }

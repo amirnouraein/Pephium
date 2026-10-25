@@ -425,6 +425,49 @@ fn release_profiles_decide_once_without_reading_or_writing_durable_policy() {
 }
 
 #[test]
+fn geolocation_prompts_and_allows_once_like_media() {
+    let store = Arc::new(FakeStore::default());
+    let (mut shell, engine, _screen, _queue, profile, item) = ready_shell(store.clone());
+    shell.page_permissions.remember_enabled = false;
+    let request = request(
+        17,
+        PagePermissionRequestKind::Single(PagePermissionKind::Geolocation),
+    );
+
+    shell.handle(Command::Engine(EngineEvent::PermissionRequested {
+        id: item,
+        profile,
+        request: request.clone(),
+    }));
+    assert!(shell.page_permissions.is_visible());
+    assert!(engine.page_permission_settlements().is_empty());
+
+    shell.handle(Command::Operation {
+        operation_id: "allow-location".into(),
+        command: Box::new(Command::RespondToPagePermissionPrompt {
+            profile,
+            item,
+            request: request.id,
+            decision: PagePermissionPromptDecision::AllowOnce,
+        }),
+    });
+    assert!(store
+        .page_permission_mutation_calls
+        .lock()
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        engine.page_permission_settlements(),
+        vec![(
+            profile,
+            item,
+            request.id,
+            PagePermissionRequestSettlement::Allow,
+        )]
+    );
+}
+
+#[test]
 fn remembered_allow_is_reobserved_before_native_allow() {
     let store = Arc::new(FakeStore::default());
     store

@@ -171,6 +171,14 @@ objc2-authentication-services = { version = "=0.3.2", default-features = false, 
 objc2-app-kit = "0.3"
 objc2-core-foundation = { version = "0.3", features = ["CFNumber", "CFString", "CFURL"] }
 objc2-core-graphics = "0.3"
+objc2-core-location = { version = "0.3", default-features = false, features = [
+    "std",
+    "CLError",
+    "CLErrorDomain",
+    "CLLocation",
+    "CLLocationManager",
+    "CLLocationManagerDelegate",
+] }
 objc2-foundation = "0.3"
 objc2-security = { version = "0.3", default-features = false, features = [
     "CSCommon",

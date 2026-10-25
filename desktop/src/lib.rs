@@ -8881,6 +8881,19 @@ mod tests {
     }
 
     #[test]
+    fn macos_bundle_declares_page_location_usage_and_entitlement() {
+        let plist = include_str!("../Info.plist");
+        for key in [
+            "NSLocationUsageDescription",
+            "NSLocationWhenInUseUsageDescription",
+        ] {
+            assert!(plist.contains(&format!("<key>{key}</key>")), "{key}");
+        }
+        assert!(include_str!("../Entitlements.plist")
+            .contains("<key>com.apple.security.personal-information.location</key>"));
+    }
+
+    #[test]
     fn macos_bundle_explains_download_folder_consent() {
         let plist = include_str!("../Info.plist");
         for key in [

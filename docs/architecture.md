@@ -509,9 +509,15 @@ any identity or epoch change.
 The Shell-side coordinator is on by default in desktop builds (the
 `zephium-desktop/macos-page-permission-prompts` feature is a default feature and
 forwards to the app feature). On Windows, ordinary human tabs defer camera and
-microphone to WebView2's own prompt and Zephium stores nothing; geolocation,
+microphone and geolocation to WebView2's own prompt and Zephium stores nothing;
 notifications and screen capture are denied everywhere, and extension pages and
-offscreen documents deny media capture.
+offscreen documents deny media capture. On macOS, geolocation goes through the
+same broker and prompt as camera and microphone; WebKit asks through
+`WKUIDelegatePrivate` before macOS 27 and the public origin callback after.
+WebKit has no macOS position source of its own, so
+`platform/macos/geolocation.rs` installs a CoreLocation provider on each
+process pool; WebKit starts it only after the page is granted, so the system
+location prompt follows Zephium's.
 The macOS coordinator loads the exact profile catalog only after a supported request from the
 focused resident tab, retains at most the two relevant rows, and serializes one
 browser-owned process-wide prompt. Navigation, tab/profile loss, window hide,
@@ -547,12 +553,13 @@ already TCC-authorized; it is not packaged-release evidence:
 cargo run --locked -p zephium-engine --features native-page-permission-probes --bin macos-page-permission-probe
 ```
 
-The macOS bundle carries human-readable `NSCameraUsageDescription` and
-`NSMicrophoneUsageDescription` values, but metadata is not capability. A
+The macOS bundle carries human-readable `NSCameraUsageDescription`,
+`NSMicrophoneUsageDescription` and `NSLocationUsageDescription` values, but
+metadata is not capability. A
 signed packaged build must still be checked for camera, microphone, and atomic
 combined Allow/Deny, OS consent ordering, navigation and tab-close
 invalidation, and device-track cleanup (`desktop/Entitlements.plist` grants the
-two device entitlements). Remembered-policy reload and incognito
+two device entitlements and the location entitlement). Remembered-policy reload and incognito
 non-persistence must be proved before `remember_enabled` is switched on.
 
 Session restore state (§7) rides on lifecycle (`opts` carries restore state).
