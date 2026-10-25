@@ -169,6 +169,7 @@ function tabMenuContext(id: string): TabMenuContext {
     page: (tab?.content ?? "web") === "web" && (tab?.url ?? null) !== null,
     can_split: canSplitWith(id),
     essential: state.nodes.some((node) => tabOf(node) === id && node.section === "favorites"),
+    pinned: state.nodes.some((node) => tabOf(node) === id && node.section === "pinned"),
     others: open.some((candidate) => candidate !== id),
     below: at >= 0 && at < open.length - 1,
   };

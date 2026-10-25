@@ -223,7 +223,8 @@ impl Shell {
         self.forget_removed_tab_state(id);
         self.forget_content_fullscreen(id);
         self.native_openers.remove(&id);
-        // An Essential is kept, not closed: the page ends and the site stays.
+        // An Essential or a pinned tab is kept, not closed: the page ends and
+        // the site stays.
         let kept = self.kept_slot(id);
         let closed_at_ms = unix_millis();
         let closed = kept
@@ -304,12 +305,20 @@ impl Shell {
         native
     }
 
-    /// Where an Essential sits, so closing it can leave it there unloaded.
+    /// Where an Essential or a pinned tab sits, so closing it can leave it
+    /// there unloaded.
     fn kept_slot(&self, id: ItemId) -> Option<KeptSlot> {
         let item = self.items.get(id)?;
         let tab = item.tab()?;
         if item.parent.is_some()
-            || !matches!(item.placement, Placement::Favorites { .. })
+            || !matches!(
+                item.placement,
+                Placement::Favorites { .. }
+                    | Placement::Space {
+                        section: SpaceSection::Pinned,
+                        ..
+                    }
+            )
             || tab.content != zephium_core::item::TabContent::Web
         {
             return None;

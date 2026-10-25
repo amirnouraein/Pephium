@@ -256,6 +256,7 @@ export const commands = {
 	tabsActivate: (id: string) => __TAURI_INVOKE<OperationAdmission>("tabs_activate", { id }),
 	tabsClose: (id: string) => __TAURI_INVOKE<OperationAdmission>("tabs_close", { id }),
 	tabsSetEssential: (id: string, essential: boolean, before: string | null) => __TAURI_INVOKE<OperationAdmission>("tabs_set_essential", { id, essential, before }),
+	tabsSetPinned: (id: string, pinned: boolean, before: string | null) => __TAURI_INVOKE<OperationAdmission>("tabs_set_pinned", { id, pinned, before }),
 	/**
 	 *  Onboarding keeps a site by its catalog id; native owns the address and
 	 *  the mark, so chrome can never pin an arbitrary URL through this path.
@@ -2914,6 +2915,8 @@ export type TabMenuContext = {
 	page: boolean,
 	can_split: boolean,
 	essential: boolean,
+	/**  The tab sits among the space's pinned tabs, in a folder or not. */
+	pinned: boolean,
 	/**  Other open tabs exist to close. */
 	others: boolean,
 	/**  Open tabs follow this one. */

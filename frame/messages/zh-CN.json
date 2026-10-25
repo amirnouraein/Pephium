@@ -3371,6 +3371,8 @@
   "native_bookmark_tab": "为标签页添加书签",
   "native_remove_from_essentials": "从常用中移除",
   "native_add_to_essentials": "添加到常用",
+  "native_pin_tab": "固定标签页",
+  "native_unpin_tab": "取消固定标签页",
   "native_ask_zephium": "询问 Zephium",
   "native_open_in_split_view": "在分屏视图中打开",
   "native_close_tab": "关闭标签页",

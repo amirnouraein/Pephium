@@ -19,6 +19,9 @@ impl Shell {
                 essential,
                 before,
             } => self.operation_set_tab_essential(id, essential, before),
+            Command::SetTabPinned { id, pinned, before } => {
+                self.operation_set_tab_pinned(id, pinned, before)
+            }
             Command::KeepSite(id) => self.operation_keep_site(&id),
             Command::ReleaseSite(id) => self.operation_release_site(&id),
             Command::RenameFocusedProfile(name) => self.operation_rename_focused_profile(&name),
@@ -136,6 +139,40 @@ impl Shell {
                 section: SpaceSection::Today,
             }
         };
+        self.operation_place_tab(id, placement, before)
+    }
+
+    /// Pinned tabs belong to the focused space, so pinning a favorite takes it
+    /// out of every other space's view as well.
+    pub(super) fn operation_set_tab_pinned(
+        &mut self,
+        id: ItemId,
+        pinned: bool,
+        before: Option<ItemId>,
+    ) -> OperationDisposition {
+        if !self.item_in_focused_scope(id) {
+            return operation_result(OperationOutcome::Rejected, OperationReason::InvalidScope);
+        }
+        let Some(window) = self.windows.focused() else {
+            return operation_result(OperationOutcome::Rejected, OperationReason::NoFocusedWindow);
+        };
+        let placement = Placement::Space {
+            space: window.space,
+            section: if pinned {
+                SpaceSection::Pinned
+            } else {
+                SpaceSection::Today
+            },
+        };
+        self.operation_place_tab(id, placement, before)
+    }
+
+    fn operation_place_tab(
+        &mut self,
+        id: ItemId,
+        placement: Placement,
+        before: Option<ItemId>,
+    ) -> OperationDisposition {
         if before.is_some_and(|before| !self.item_in_focused_scope(before)) {
             return operation_result(OperationOutcome::Rejected, OperationReason::InvalidScope);
         }

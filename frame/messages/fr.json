@@ -3371,6 +3371,8 @@
   "native_bookmark_tab": "Ajouter l'onglet aux signets",
   "native_remove_from_essentials": "Retirer des Essentiels",
   "native_add_to_essentials": "Ajouter aux Essentiels",
+  "native_pin_tab": "Épingler l'onglet",
+  "native_unpin_tab": "Détacher l'onglet",
   "native_ask_zephium": "Demander à Zephium",
   "native_open_in_split_view": "Ouvrir dans l'écran partagé",
   "native_close_tab": "Fermer l'onglet",

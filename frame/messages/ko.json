@@ -3371,6 +3371,8 @@
   "native_bookmark_tab": "탭 북마크",
   "native_remove_from_essentials": "필수 항목에서 제거",
   "native_add_to_essentials": "필수 항목에 추가",
+  "native_pin_tab": "탭 고정",
+  "native_unpin_tab": "탭 고정 해제",
   "native_ask_zephium": "Zephium에 질문",
   "native_open_in_split_view": "분할 보기로 열기",
   "native_close_tab": "탭 닫기",

@@ -3371,6 +3371,8 @@
   "native_bookmark_tab": "Aggiungi scheda ai segnalibri",
   "native_remove_from_essentials": "Rimuovi da Essenziali",
   "native_add_to_essentials": "Aggiungi a Essenziali",
+  "native_pin_tab": "Fissa scheda",
+  "native_unpin_tab": "Rimuovi scheda fissata",
   "native_ask_zephium": "Chiedi a Zephium",
   "native_open_in_split_view": "Apri in vista divisa",
   "native_close_tab": "Chiudi scheda",

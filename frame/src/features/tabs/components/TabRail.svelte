@@ -44,13 +44,16 @@
   const drag = new RowDrag({
     list: () => list,
     region: () => scroller,
-    reorder: () => ({ essential: false }),
+    reorder: () => "today",
     drop: ({ id, x, y, over, before }) => {
       const essential = !!over?.closest("[data-essentials-drop]");
       // A tab that cannot be kept goes back where it was.
       if (essential && !tabDrag.keepable(id)) return;
       if (tabs.inSplit(id) && (essential || over?.closest("[data-tabs-drop]")))
-        void tabDrag.leaveSplit(id, essential || before ? { essential, before } : null);
+        void tabDrag.leaveSplit(
+          id,
+          essential || before ? { to: essential ? "essentials" : "today", before } : null,
+        );
       else if (essential) void tabDrag.move(id, true, before);
       else tabs.dropTab(id, x, y);
     },

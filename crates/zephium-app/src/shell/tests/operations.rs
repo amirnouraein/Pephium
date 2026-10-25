@@ -986,6 +986,135 @@ fn essential_move_survives_session_restore() {
 }
 
 #[test]
+fn pin_move_keeps_the_native_tab_orders_by_drop_target_and_can_be_reversed() {
+    let (mut shell, engine, screen) = setup();
+    shell.handle(Command::Bootstrap);
+    let first = active_id(&screen);
+    navigate_and_commit(&mut shell, first, "first-pinned.example");
+    shell.handle_operation(Command::Open);
+    let second = active_id(&screen);
+    assert_ne!(second, first);
+    navigate_and_commit(&mut shell, second, "second-pinned.example");
+    let space = shell.windows.focused().unwrap().space;
+    let pinned = Placement::Space {
+        space,
+        section: SpaceSection::Pinned,
+    };
+    let before = engine.calls().len();
+    let result = shell.handle_operation(Command::SetTabPinned {
+        id: first,
+        pinned: true,
+        before: None,
+    });
+    assert!(matches!(
+        result.outcome,
+        OperationOutcome::Applied | OperationOutcome::Deferred
+    ));
+    assert_eq!(shell.items.get(first).unwrap().placement, pinned);
+    // A drop onto the pinned row goes before it.
+    shell.handle_operation(Command::SetTabPinned {
+        id: second,
+        pinned: true,
+        before: Some(first),
+    });
+    assert_eq!(shell.items.roots(pinned), [second, first]);
+    assert!(shell.items.tab(first).unwrap().has_view());
+    assert_eq!(active_id(&screen), second);
+    assert!(!engine.calls()[before..]
+        .iter()
+        .any(|call| call.starts_with("close ") || call.starts_with("create ")));
+    shell.handle_operation(Command::SetTabPinned {
+        id: first,
+        pinned: false,
+        before: None,
+    });
+    assert_eq!(
+        shell.items.get(first).unwrap().placement,
+        Placement::Space {
+            space,
+            section: SpaceSection::Today,
+        }
+    );
+    assert_eq!(shell.items.roots(pinned), [second]);
+}
+
+#[test]
+fn pin_move_rejects_foreign_and_invalid_drop_targets() {
+    let (mut shell, _, screen) = setup();
+    shell.handle(Command::Bootstrap);
+    let id = active_id(&screen);
+    let placement = shell.items.get(id).unwrap().placement;
+    let denied = shell.handle_operation(Command::SetTabPinned {
+        id,
+        pinned: true,
+        before: Some(ItemId::from(u128::MAX)),
+    });
+    assert_eq!(denied.outcome, OperationOutcome::Rejected);
+    assert_eq!(shell.items.get(id).unwrap().placement, placement);
+    let denied = shell.handle_operation(Command::SetTabPinned {
+        id: ItemId::from(u128::MAX),
+        pinned: true,
+        before: None,
+    });
+    assert_eq!(denied.outcome, OperationOutcome::Rejected);
+    let foreign_profile = add_inactive_named_profile(&mut shell, 900);
+    let foreign_tab = ItemId::from(902_u128);
+    assert!(shell.items.insert_tab(
+        foreign_tab,
+        Placement::Favorites {
+            profile: foreign_profile
+        }
+    ));
+    let denied = shell.handle_operation(Command::SetTabPinned {
+        id: foreign_tab,
+        pinned: true,
+        before: None,
+    });
+    assert_eq!(denied.reason, OperationReason::InvalidScope);
+    assert_eq!(
+        shell.items.get(foreign_tab).unwrap().placement,
+        Placement::Favorites {
+            profile: foreign_profile
+        }
+    );
+}
+
+#[test]
+fn pin_move_survives_session_restore() {
+    let store = Arc::new(FakeStore::default());
+    let (mut shell, _, screen) = setup_with(store.clone());
+    shell.handle(Command::Bootstrap);
+    let id = active_id(&screen);
+    navigate_and_commit(&mut shell, id, "saved-pinned.example");
+    let space = shell.windows.focused().unwrap().space;
+    shell.handle_operation(Command::SetTabPinned {
+        id,
+        pinned: true,
+        before: None,
+    });
+    shell.persist();
+    let (mut restored, _, _) = setup_with(store);
+    restored.handle(Command::Bootstrap);
+    assert_eq!(
+        restored.items.get(id).unwrap().placement,
+        Placement::Space {
+            space,
+            section: SpaceSection::Pinned,
+        }
+    );
+    assert_eq!(
+        restored
+            .items
+            .tab(id)
+            .unwrap()
+            .url
+            .as_ref()
+            .map(url::Url::as_str),
+        Some("https://saved-pinned.example/")
+    );
+}
+
+#[test]
 fn scoped_launcher_actions_reject_stale_requests_and_unoffered_actions() {
     let (mut shell, _, screen) = setup();
     shell.handle(Command::Bootstrap);

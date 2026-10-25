@@ -587,6 +587,49 @@ fn closing_an_essential_ends_its_page_and_keeps_it_in_place() {
         .all(|id| *id != reopened.to_string()));
 }
 
+#[test]
+fn closing_a_pinned_tab_ends_its_page_and_keeps_it_in_place() {
+    let (mut shell, engine, screen) = setup();
+    shell.handle(Command::Bootstrap);
+    let space = shell.windows.focused().unwrap().space;
+    let pinned = Placement::Space {
+        space,
+        section: SpaceSection::Pinned,
+    };
+    let mail = active_id(&screen);
+    navigate_and_commit(&mut shell, mail, "mail.example/inbox");
+    shell.handle(Command::Open);
+    let board = active_id(&screen);
+    navigate_and_commit(&mut shell, board, "board.example");
+    for id in [mail, board] {
+        shell.handle(Command::SetTabPinned {
+            id,
+            pinned: true,
+            before: None,
+        });
+    }
+    shell.handle(Command::Activate(mail));
+
+    shell.handle(Command::Close(mail));
+    let after = shell.items.roots(pinned).to_vec();
+    assert_eq!(after.len(), 2);
+    let reopened = after[0];
+    assert_ne!(reopened, mail, "a closed view's id is never reused");
+    assert_eq!(after[1], board);
+    let tab = shell.items.tab(reopened).unwrap();
+    assert!(!tab.has_view());
+    assert_eq!(
+        tab.url.as_ref().unwrap().as_str(),
+        "https://mail.example/inbox"
+    );
+    assert!(shell.recently_closed.is_empty());
+    assert_ne!(active_id(&screen), reopened);
+    assert!(engine
+        .last_layout()
+        .iter()
+        .all(|id| *id != reopened.to_string()));
+}
+
 fn today_of(shell: &Shell, space: SpaceId) -> Vec<ItemId> {
     shell
         .items

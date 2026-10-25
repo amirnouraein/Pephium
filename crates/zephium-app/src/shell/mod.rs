@@ -757,6 +757,9 @@ impl Shell {
             } => {
                 let _ = self.operation_set_tab_essential(id, essential, before);
             }
+            Command::SetTabPinned { id, pinned, before } => {
+                let _ = self.operation_set_tab_pinned(id, pinned, before);
+            }
             Command::KeepSite(id) => {
                 let _ = self.operation_keep_site(&id);
             }

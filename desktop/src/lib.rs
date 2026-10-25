@@ -1670,6 +1670,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             tabs_activate,
             tabs_close,
             tabs_set_essential,
+            tabs_set_pinned,
             essentials_keep,
             essentials_release,
             profile_rename,
@@ -2760,6 +2761,38 @@ fn tabs_set_essential(
     )
 }
 
+#[tauri::command]
+#[specta::specta]
+fn tabs_set_pinned(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    id: String,
+    pinned: bool,
+    before: Option<String>,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "tabs_set_pinned")
+        || !bounded(&id, MAX_ITEM_ID_BYTES)
+    {
+        return rejected_operation();
+    }
+    let Some(id) = ItemId::parse(&id) else {
+        return rejected_operation();
+    };
+    let before = match before {
+        Some(value) if bounded(&value, MAX_ITEM_ID_BYTES) => match ItemId::parse(&value) {
+            Some(id) => Some(id),
+            None => return rejected_operation(),
+        },
+        Some(_) => return rejected_operation(),
+        None => None,
+    };
+    dispatch_operation(
+        caller.app_handle(),
+        &shell,
+        Command::SetTabPinned { id, pinned, before },
+    )
+}
+
 /// Onboarding keeps a site by its catalog id; native owns the address and
 /// the mark, so chrome can never pin an arbitrary URL through this path.
 #[tauri::command]
@@ -3612,6 +3645,11 @@ fn execute_tab_menu_action(
         essential,
         before: None,
     };
+    let pin = |pinned| Command::SetTabPinned {
+        id,
+        pinned,
+        before: None,
+    };
     match action {
         "reload" => dispatch_operation(app, &shell, Command::Reload(id)),
         "close" => dispatch_operation(app, &shell, Command::Close(id)),
@@ -3621,6 +3659,8 @@ fn execute_tab_menu_action(
         "closeBelow" => dispatch_operation(app, &shell, tab_action(TabAction::CloseBelow)),
         "keep" => dispatch_operation(app, &shell, keep(true)),
         "unkeep" => dispatch_operation(app, &shell, keep(false)),
+        "pin" => dispatch_operation(app, &shell, pin(true)),
+        "unpin" => dispatch_operation(app, &shell, pin(false)),
         "split" => dispatch_operation(
             app,
             &shell,
@@ -5337,7 +5377,7 @@ const BOOKMARK_MENU_ACTION_IDS: [&str; 6] = [
     "bookmarkmenu.removeFolder",
 ];
 
-const TAB_MENU_ACTION_IDS: [&str; 10] = [
+const TAB_MENU_ACTION_IDS: [&str; 12] = [
     "tabmenu.reload",
     "tabmenu.duplicate",
     "tabmenu.copyLink",
@@ -5348,6 +5388,8 @@ const TAB_MENU_ACTION_IDS: [&str; 10] = [
     "tabmenu.close",
     "tabmenu.closeOthers",
     "tabmenu.closeBelow",
+    "tabmenu.pin",
+    "tabmenu.unpin",
 ];
 
 /// What the tab menu can offer for the tab it opens on, as the sidebar sees
@@ -5358,6 +5400,8 @@ struct TabMenuContext {
     page: bool,
     can_split: bool,
     essential: bool,
+    /// The tab sits among the space's pinned tabs, in a folder or not.
+    pinned: bool,
     /// Other open tabs exist to close.
     others: bool,
     /// Open tabs follow this one.
@@ -5518,6 +5562,15 @@ fn build_tab_menu(
     } else {
         item(4, "Add to Essentials", context.page)?
     };
+    // Pinned tabs live in a space; Essentials are every space's, so they
+    // have nothing to pin to.
+    let pin = if context.essential {
+        None
+    } else if context.pinned {
+        Some(item(11, "Unpin Tab", true)?)
+    } else {
+        Some(item(10, "Pin Tab", context.page)?)
+    };
     let split = item(6, "Open in Split View", context.can_split)?;
     let second = PredefinedMenuItem::separator(handle)?;
     let close = item(7, "Close Tab", true)?;
@@ -5529,9 +5582,12 @@ fn build_tab_menu(
     } else {
         spaces::tab_menu_section(handle, &format!("tabmenu.{}", spaces::TAB_MENU_MOVE))?
     };
-    let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![
-        &reload, &duplicate, &copy_link, &bookmark, &first, &keep, &split,
-    ];
+    let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> =
+        vec![&reload, &duplicate, &copy_link, &bookmark, &first];
+    if let Some(pin) = &pin {
+        items.push(pin);
+    }
+    items.extend([&keep as &dyn tauri::menu::IsMenuItem<tauri::Wry>, &split]);
     if let Some(move_to) = &move_to {
         items.push(move_to);
     }
@@ -7256,7 +7312,9 @@ mod tests {
                 "tabmenu.split",
                 "tabmenu.close",
                 "tabmenu.closeOthers",
-                "tabmenu.closeBelow"
+                "tabmenu.closeBelow",
+                "tabmenu.pin",
+                "tabmenu.unpin"
             ]
         );
         // Context-menu actions carry their own target and must never collide

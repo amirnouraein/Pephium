@@ -3371,6 +3371,8 @@
   "native_bookmark_tab": "Додати вкладку в закладки",
   "native_remove_from_essentials": "Прибрати з «Основних»",
   "native_add_to_essentials": "Додати до «Основних»",
+  "native_pin_tab": "Закріпити вкладку",
+  "native_unpin_tab": "Відкріпити вкладку",
   "native_ask_zephium": "Запитати Zephium",
   "native_open_in_split_view": "Відкрити в розділеному перегляді",
   "native_close_tab": "Закрити вкладку",

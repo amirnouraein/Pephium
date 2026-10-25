@@ -3371,6 +3371,8 @@
   "native_bookmark_tab": "タブをブックマーク",
   "native_remove_from_essentials": "よく使う項目から削除",
   "native_add_to_essentials": "よく使う項目に追加",
+  "native_pin_tab": "タブをピン留め",
+  "native_unpin_tab": "タブのピン留めを外す",
   "native_ask_zephium": "Zephiumに質問",
   "native_open_in_split_view": "分割表示で開く",
   "native_close_tab": "タブを閉じる",

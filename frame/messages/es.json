@@ -3371,6 +3371,8 @@
   "native_bookmark_tab": "Añadir pestaña a marcadores",
   "native_remove_from_essentials": "Quitar de Esenciales",
   "native_add_to_essentials": "Añadir a Esenciales",
+  "native_pin_tab": "Fijar pestaña",
+  "native_unpin_tab": "Dejar de fijar pestaña",
   "native_ask_zephium": "Preguntar a Zephium",
   "native_open_in_split_view": "Abrir en vista dividida",
   "native_close_tab": "Cerrar pestaña",

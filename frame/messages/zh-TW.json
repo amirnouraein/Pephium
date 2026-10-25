@@ -3371,6 +3371,8 @@
   "native_bookmark_tab": "將分頁加入書籤",
   "native_remove_from_essentials": "從精選移除",
   "native_add_to_essentials": "加入精選",
+  "native_pin_tab": "釘選分頁",
+  "native_unpin_tab": "取消釘選分頁",
   "native_ask_zephium": "詢問 Zephium",
   "native_open_in_split_view": "在分割畫面中打開",
   "native_close_tab": "關閉分頁",

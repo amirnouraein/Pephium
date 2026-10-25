@@ -3371,6 +3371,8 @@
   "native_bookmark_tab": "Sekmeyi Yer İmlerine Ekle",
   "native_remove_from_essentials": "Sık Kullanılanlardan Kaldır",
   "native_add_to_essentials": "Sık Kullanılanlara Ekle",
+  "native_pin_tab": "Sekmeyi Sabitle",
+  "native_unpin_tab": "Sekmenin Sabitlemesini Kaldır",
   "native_ask_zephium": "Zephium'a sor",
   "native_open_in_split_view": "Bölünmüş Görünümde Aç",
   "native_close_tab": "Sekmeyi Kapat",

@@ -1248,6 +1248,7 @@ fn tracked_operation_command(command: &Command) -> bool {
             | Command::WorkPaneShow { .. }
             | Command::WorkPaneHide
             | Command::SetTabEssential { .. }
+            | Command::SetTabPinned { .. }
             | Command::KeepSite(_)
             | Command::ReleaseSite(_)
             | Command::RenameFocusedProfile(_)

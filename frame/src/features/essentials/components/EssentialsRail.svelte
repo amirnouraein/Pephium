@@ -33,7 +33,7 @@
   // site is no longer kept, anywhere else and native decides (a page).
   const drag = new RowDrag({
     list: () => list,
-    reorder: () => ({ essential: true }),
+    reorder: () => "essentials",
     drop: ({ id, x, y, over, before }) => {
       if (over?.closest("[data-tabs-drop]")) void tabDrag.move(id, false, before);
       else tabs.dropTab(id, x, y);

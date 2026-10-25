@@ -3371,6 +3371,8 @@
   "native_bookmark_tab": "Adicionar Aba aos Favoritos",
   "native_remove_from_essentials": "Remover dos Essenciais",
   "native_add_to_essentials": "Adicionar aos Essenciais",
+  "native_pin_tab": "Fixar Aba",
+  "native_unpin_tab": "Desafixar Aba",
   "native_ask_zephium": "Perguntar ao Zephium",
   "native_open_in_split_view": "Abrir em Tela Dividida",
   "native_close_tab": "Fechar Aba",

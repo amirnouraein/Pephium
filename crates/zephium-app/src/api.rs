@@ -347,6 +347,13 @@ pub enum Command {
         essential: bool,
         before: Option<ItemId>,
     },
+    /// Moves a tab into the focused space's pinned section, or back among
+    /// its open tabs.
+    SetTabPinned {
+        id: ItemId,
+        pinned: bool,
+        before: Option<ItemId>,
+    },
     /// Keeps one of onboarding's catalog sites, named by its catalog id.
     KeepSite(String),
     /// Lets go of a catalog site onboarding kept, named by its catalog id.
