@@ -40,6 +40,11 @@ pub(crate) fn install(dir: PathBuf) {
     }));
 }
 
+/// The folder holding the log and the crash report, once the log is set up.
+pub(crate) fn log_dir() -> Option<&'static Path> {
+    LOG_DIR.get().map(PathBuf::as_path)
+}
+
 fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
     let mut options = std::fs::OpenOptions::new();

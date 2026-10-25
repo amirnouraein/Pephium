@@ -2396,7 +2396,9 @@ navigation before WebKit could apply its controller- and
 `web_accessible_resources`-bound authorization.
 
 The pinned Wry adapter now delegates only exact non-main-frame
-`webkit-extension://` navigations to WebKit's native policy. Main-frame and
+`webkit-extension://` and `chrome-extension://` navigations to WebKit's native
+policy; the latter is the base URL the runtime assigns every context, so
+omitting it cancelled every extension's in-page frame (issue #160). Main-frame and
 target-less actions still require the host callback, other schemes receive no
 bypass, and WebKit remains responsible for proving a loaded context plus the
 manifest resource grant. A pure policy test covers those boundaries. The live

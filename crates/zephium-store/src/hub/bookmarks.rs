@@ -201,6 +201,12 @@ fn apply(conn: &mut Connection, request: BookmarkRequest) -> Outcome<BookmarkRep
             };
             import.merge(root, 1, &nodes)?;
             let added = import.added;
+            if added == 0 {
+                // Nothing came over, so nothing is kept: not the import's
+                // folder, not an empty one inside it. Dropping the
+                // transaction undoes them.
+                return Ok(Ok(BookmarkReply::Imported(0)));
+            }
             tx.commit()?;
             Ok(Ok(BookmarkReply::Imported(added)))
         }
@@ -745,6 +751,64 @@ mod tests {
             )),
             vec!["Book", "Std"]
         );
+    }
+
+    #[test]
+    fn an_import_that_adds_nothing_leaves_no_folder_behind() {
+        let (mut hub, profile) = hub();
+        let top = |hub: &mut Hub| {
+            let BookmarkReply::Nodes(top) =
+                hub.bookmarks(profile, BookmarkRequest::Children { parent: None })
+            else {
+                panic!("top level");
+            };
+            top
+        };
+        let import = |hub: &mut Hub, nodes| {
+            hub.bookmarks(
+                profile,
+                BookmarkRequest::Import {
+                    folder: "Imported from Chrome".into(),
+                    nodes,
+                },
+            )
+        };
+        assert_eq!(import(&mut hub, vec![]), BookmarkReply::Imported(0));
+        // Links the profile cannot hold leave no folder either, nor an empty
+        // one inside it.
+        assert_eq!(
+            import(
+                &mut hub,
+                vec![
+                    ImportNode::Link {
+                        title: "Settings".into(),
+                        url: "chrome://settings/".into(),
+                    },
+                    ImportNode::Folder {
+                        title: "Internal".into(),
+                        children: vec![ImportNode::Link {
+                            title: "Flags".into(),
+                            url: "chrome://flags/".into(),
+                        }],
+                    },
+                ]
+            ),
+            BookmarkReply::Imported(0)
+        );
+        assert!(top(&mut hub).is_empty());
+
+        // An import that did bring something is kept, and a later one with
+        // nothing new keeps it as it was.
+        let kept = vec![ImportNode::Link {
+            title: "Яндекс".into(),
+            url: "https://ya.ru/".into(),
+        }];
+        assert_eq!(import(&mut hub, kept.clone()), BookmarkReply::Imported(1));
+        assert_eq!(import(&mut hub, kept), BookmarkReply::Imported(0));
+        assert_eq!(import(&mut hub, vec![]), BookmarkReply::Imported(0));
+        let folders = top(&mut hub);
+        assert_eq!(folders.len(), 1);
+        assert_eq!(folders[0].children, 1);
     }
 
     #[test]

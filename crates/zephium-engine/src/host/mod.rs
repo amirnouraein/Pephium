@@ -171,6 +171,10 @@ struct ObservedView {
     discard_settle_timer: std::cell::RefCell<Option<crate::platform::imp::ContentPolicyTimeout>>,
     #[cfg(target_os = "windows")]
     request_witness: Option<crate::platform::imp::RequestWitness>,
+    // The DevTools window id of this exact controller, which never changes:
+    // asked once instead of on every extension toolbar refresh.
+    #[cfg(target_os = "windows")]
+    extension_window: Cell<Option<i64>>,
     #[cfg(target_os = "windows")]
     windows_final_discard: Option<Arc<discard::WindowsFinalDiscard>>,
     #[cfg(target_os = "windows")]

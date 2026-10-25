@@ -48,6 +48,9 @@ struct CurrentNavigation {
     native_id: Option<NavigationId>,
     request: Option<NavigationRequestId>,
     previous_committed: Option<CommittedNavigation>,
+    // A native popup's first load is performed by the engine, not requested
+    // by us, so its first start may already describe a redirect target.
+    adopts_first_start: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -104,6 +107,20 @@ impl NavigationEpochTracker {
 
     pub(crate) fn begin(&self, target: &str) -> Option<NavigationEpoch> {
         self.begin_with_request(target, None)
+    }
+
+    /// Bind a native popup's engine-performed first load. Its first main-frame
+    /// start is adopted whatever URL it reports, since WebKit attributes a
+    /// page-driven load only at commit, after any redirects.
+    pub(crate) fn begin_adopted(&self, target: &str) -> Option<NavigationEpoch> {
+        let target = canonical_navigation_target(target)?;
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let epoch = Self::begin_locked(&mut state, &target, None)?;
+        state.current.as_mut()?.adopts_first_start = true;
+        Some(epoch)
     }
 
     pub(crate) fn begin_request(
@@ -176,6 +193,7 @@ impl NavigationEpochTracker {
             native_id: None,
             request,
             previous_committed,
+            adopts_first_start: false,
         });
         Some(epoch)
     }
@@ -264,8 +282,12 @@ impl NavigationEpochTracker {
                     Some(TrackedNavigationPhase::AwaitingStart) => {
                         let current = state.current.as_mut()?;
                         if current.target != target {
-                            return None;
+                            if !current.adopts_first_start {
+                                return None;
+                            }
+                            current.target = target;
                         }
+                        current.adopts_first_start = false;
                         current.native_id = Some(event.id);
                         current.phase = TrackedNavigationPhase::Started;
                         Some(NavigationTransition::Started(current.epoch))
@@ -375,6 +397,7 @@ impl NavigationEpochTracker {
             native_id: previous.native_id,
             request: None,
             previous_committed: None,
+            adopts_first_start: false,
         });
         restored
     }
@@ -733,6 +756,56 @@ mod tests {
         assert_eq!(
             tracker.committed_snapshot(),
             Some((visible, "https://fixture.test/".into()))
+        );
+    }
+
+    #[test]
+    fn popup_first_load_commits_after_engine_redirects() {
+        let tracker = NavigationEpochTracker::new();
+        let popup = tracker
+            .begin_adopted("https://accounts.example/AddSession")
+            .unwrap();
+        let landed = "https://accounts.example/signin?continue=classroom";
+        assert_eq!(
+            tracker.observe_navigation(&event(5, NavigationEventPhase::Started, landed)),
+            Some(NavigationTransition::Started(popup))
+        );
+        assert_eq!(
+            tracker.observe_navigation(&event(5, NavigationEventPhase::Redirected, landed)),
+            Some(NavigationTransition::Redirected(popup))
+        );
+        assert_eq!(
+            tracker.observe_navigation(&event(5, NavigationEventPhase::Committed, landed)),
+            Some(NavigationTransition::Committed(popup))
+        );
+        assert_eq!(tracker.committed_snapshot(), Some((popup, landed.into())));
+    }
+
+    #[test]
+    fn only_the_first_popup_start_is_adopted() {
+        let tracker = NavigationEpochTracker::new();
+        tracker.begin_adopted("https://popup.example/").unwrap();
+        tracker.observe_navigation(&event(
+            6,
+            NavigationEventPhase::Started,
+            "https://popup.example/",
+        ));
+        let requested = tracker.begin("https://next.example/").unwrap();
+        assert_eq!(
+            tracker.observe_navigation(&event(
+                7,
+                NavigationEventPhase::Started,
+                "https://other.example/"
+            )),
+            None
+        );
+        assert_eq!(
+            tracker.observe_navigation(&event(
+                7,
+                NavigationEventPhase::Started,
+                "https://next.example/"
+            )),
+            Some(NavigationTransition::Started(requested))
         );
     }
 

@@ -18,6 +18,19 @@ macro_rules! diagnostic {
 
 pub(crate) use diagnostic;
 
+/// `AgentWorkFailure::Contract`, remembering where it was raised so a failed
+/// page task names its cause in the log.
+#[allow(unused_macros)]
+macro_rules! contract_failure {
+    () => {{
+        #[cfg(feature = "work-execution")]
+        zephium_agent_controller::mark_contract_site(concat!(file!(), ":", line!()));
+        AgentWorkFailure::Contract
+    }};
+}
+#[allow(unused_imports)]
+pub(crate) use contract_failure;
+
 mod actor;
 mod api;
 mod lookup;

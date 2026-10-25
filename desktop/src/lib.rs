@@ -114,6 +114,7 @@ mod startup_alert;
 #[cfg(feature = "work-development-traces")]
 mod startup_styles;
 mod swipe;
+mod system_time;
 mod updates;
 mod voice;
 mod webext;
@@ -511,6 +512,28 @@ impl UiStartupGate {
             #[cfg(feature = "work-development-traces")]
             startup_styles::after_show(window, &self.expected());
         }
+    }
+
+    /// Whether the main window may navigate to `url` given where this launch
+    /// is. Once the first document has been shown, the bootstrap blank page
+    /// is gone for good; once onboarding handed over, so is onboarding. Both
+    /// are still in the back-forward list, so history navigation of any kind
+    /// (mouse button, swipe, shortcut, script) ends here.
+    fn permits_navigation(&self, url: &tauri::Url) -> bool {
+        if !ui_navigation_allowed(url) {
+            return false;
+        }
+        if url.as_str() == PRIVILEGED_BOOTSTRAP_URL {
+            return !self.visible.load(Ordering::Acquire)
+                && !self.handed_over.load(Ordering::Acquire);
+        }
+        let onboarding = self.handover.as_ref().map(|handover| &handover.onboarding);
+        !(self.handed_over.load(Ordering::Acquire)
+            && onboarding.is_some_and(|onboarding| {
+                url.scheme() == onboarding.scheme()
+                    && url.host_str() == onboarding.host_str()
+                    && url.path() == onboarding.path()
+            }))
     }
 
     /// Whether the caller is the onboarding page this launch opened, and it
@@ -1141,15 +1164,34 @@ fn contain_tauri_setup_failure<E>(
 
 fn request_startup_failure(app: &tauri::AppHandle, error: impl std::fmt::Display) {
     let error = error.to_string();
+    let problem = startup_alert::StartupProblem::classify(&error);
+    request_classified_startup_failure(app, problem, &error, &error);
+}
+
+/// A failure of the setup transaction: one that knows what the person can do
+/// about it says so, any other is classified from its text.
+fn request_setup_failure(app: &tauri::AppHandle, error: Box<dyn std::error::Error>) {
+    match error.downcast::<startup_alert::StartupFailure>() {
+        Ok(failure) => request_classified_startup_failure(
+            app,
+            failure.problem(),
+            &failure.to_string(),
+            failure.detail(),
+        ),
+        Err(error) => request_startup_failure(app, error),
+    }
+}
+
+fn request_classified_startup_failure(
+    app: &tauri::AppHandle,
+    problem: startup_alert::StartupProblem,
+    cause: &str,
+    detail: &str,
+) {
     write_diagnostic(format_args!(
-        "startup: failed to initialize Zephium: {error}"
+        "startup: failed to initialize Zephium: {cause}"
     ));
-    startup_alert::show_then(
-        app,
-        startup_alert::StartupProblem::classify(&error),
-        &error,
-        request_orderly_terminal_failure,
-    );
+    startup_alert::show_then(app, problem, detail, request_orderly_terminal_failure);
 }
 
 fn request_shell_terminal_failure(
@@ -1773,6 +1815,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             download_call,
             download_open_access_settings,
             about::about_info,
+            system_time::system_clock_24h,
             updates::update_status,
             updates::update_check,
             updates::update_relaunch,
@@ -1940,7 +1983,14 @@ fn cleanup_privileged_runtime_after_exit() -> bool {
 fn navigation_lock() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri::plugin::Builder::new("ui-navigation-lock")
         .on_navigation(|webview, url| {
-            let allowed = ui_navigation_allowed(url);
+            let allowed = if webview.label() == MAIN_LABEL {
+                webview.try_state::<UiStartupGate>().map_or_else(
+                    || ui_navigation_allowed(url),
+                    |gate| gate.permits_navigation(url),
+                )
+            } else {
+                ui_navigation_allowed(url)
+            };
             if !allowed
                 && NAVIGATION_DENIAL_LOGS_REMAINING
                     .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
@@ -5861,6 +5911,10 @@ pub fn run() {
     }
     install_async_runtime();
     APP_STARTED.get_or_init(std::time::Instant::now);
+    let context = tauri::generate_context!();
+    // A launch that stops before setup has nowhere else to say why.
+    #[cfg(all(target_os = "windows", not(feature = "webext-qa")))]
+    platform::imp::open_startup_log(&context.config().identifier);
     #[cfg(target_os = "macos")]
     let runtime_security_advisories = match platform::imp::enforce_runtime_security_floor() {
         Ok(advisory) => advisory,
@@ -5890,12 +5944,12 @@ pub fn run() {
     #[cfg(target_os = "windows")]
     let runtime_security_advisories = match platform::imp::enforce_runtime_security_floor() {
         Ok(advisory) => advisory,
-        Err(error) => {
+        Err(failure) => {
             // This runs before Builder creates either privileged chrome
             // or raw content. Preview, overridden, or unparseable runtimes
             // remain hard failures; an outdated one is an advisory.
-            diagnostic!("security: {error}");
-            startup_alert::show_blocking(startup_alert::StartupProblem::UnsupportedSystem, &error);
+            diagnostic!("security: {failure}");
+            startup_alert::show_blocking(failure.problem(), failure.detail());
             std::process::exit(78);
         }
     };
@@ -6225,17 +6279,15 @@ pub fn run() {
             });
 
             #[cfg(target_os = "windows")]
-            let platform_initialized = platform::imp::init(
+            platform::imp::init(
                 &window,
                 &privileged_runtime.main,
                 runtime_update_notifier.clone(),
-            );
+            )?;
             #[cfg(target_os = "macos")]
-            let platform_initialized = platform::imp::init(&window);
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
-            if !platform_initialized {
+            if !platform::imp::init(&window) {
                 return Err(std::io::Error::other(
-                    "required privileged-WebView hardening or native composition failed",
+                    "the browser window couldn't be set up with its required protections",
                 )
                 .into());
             }
@@ -6908,7 +6960,7 @@ pub fn run() {
             {
                 if !platform::imp::harden_privileged(&panel_window) {
                     return Err(std::io::Error::other(
-                        "required privileged panel WKWebView hardening failed",
+                        "the launcher panel couldn't be set up with its required protections",
                     )
                     .into());
                 }
@@ -6917,16 +6969,11 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             {
                 platform::imp::round_corners(&panel_window);
-                if !platform::imp::harden_privileged(
+                platform::imp::harden_privileged(
                     &panel_window,
                     &privileged_runtime.panel,
                     runtime_update_notifier.clone(),
-                ) {
-                    return Err(std::io::Error::other(
-                        "required privileged panel WebView2 hardening failed",
-                    )
-                    .into());
-                }
+                )?;
                 platform::imp::apply_material(&panel_window, true);
             }
             #[cfg(all(unix, not(target_os = "macos")))]
@@ -7079,17 +7126,20 @@ pub fn run() {
             })();
 
             contain_tauri_setup_failure(setup_result, |error| {
-                request_startup_failure(app.handle(), error)
+                request_setup_failure(app.handle(), error)
             })
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .unwrap_or_else(|error| {
             diagnostic!("startup: failed to build Zephium: {error}");
             #[cfg(not(target_os = "linux"))]
-            startup_alert::show_blocking(
-                startup_alert::StartupProblem::Other,
-                &error.to_string(),
-            );
+            {
+                let error = error.to_string();
+                startup_alert::show_blocking(
+                    startup_alert::StartupProblem::classify(&error),
+                    &error,
+                );
+            }
             std::process::exit(1);
         });
 
@@ -8098,7 +8148,7 @@ mod tests {
             .split(".setup(move |app| {")
             .nth(1)
             .expect("desktop setup hook")
-            .split(".build(tauri::generate_context!())")
+            .split(".build(context)")
             .next()
             .expect("bounded desktop setup hook");
         let state = setup
@@ -8196,7 +8246,7 @@ mod tests {
             .split(".setup(move |app| {")
             .nth(1)
             .expect("desktop setup hook")
-            .split(".build(tauri::generate_context!())")
+            .split(".build(context)")
             .next()
             .expect("bounded desktop setup hook");
 
@@ -8664,7 +8714,7 @@ mod tests {
     fn privileged_webview2_save_as_is_cancelled_before_dialog_suppression() {
         let source = include_str!("platform/windows.rs");
         let handler = source
-            .split("let core25 = core.cast::<ICoreWebView2_25>()?")
+            .split("let core25 = require::<ICoreWebView2_25>(&core, \"ICoreWebView2_25\")?")
             .nth(1)
             .expect("mandatory privileged SaveAsUIShowing interface")
             .split("// Tauri's navigation hook")
@@ -8682,7 +8732,7 @@ mod tests {
     fn privileged_webview2_autofill_surfaces_are_read_back_disabled() {
         let source = include_str!("platform/windows.rs");
         let policy = source
-            .split("let settings4 = settings.cast::<ICoreWebView2Settings4>()?")
+            .split("let settings4 = require::<ICoreWebView2Settings4>(&settings, \"Settings4\")?")
             .nth(1)
             .expect("mandatory privileged Settings4 policy")
             .split("let mut token = 0_i64")
@@ -8738,6 +8788,48 @@ mod tests {
         assert!(!super::ui_navigation_allowed(
             &Url::parse("file:///etc/passwd").unwrap()
         ));
+    }
+
+    #[test]
+    fn history_never_returns_to_onboarding_or_the_bootstrap_page() {
+        #[cfg(not(target_os = "windows"))]
+        let base = "tauri://localhost";
+        #[cfg(target_os = "windows")]
+        let base = "http://tauri.localhost";
+        let url = |path: &str| Url::parse(&format!("{base}/{path}")).unwrap();
+        let bootstrap = Url::parse(super::PRIVILEGED_BOOTSTRAP_URL).unwrap();
+        let gate = super::UiStartupGate::onboarding_first(
+            url(super::ONBOARDING_PAGE),
+            url("browser.html"),
+        );
+
+        assert!(gate.permits_navigation(&bootstrap));
+        assert!(gate.permits_navigation(&url(super::ONBOARDING_PAGE)));
+
+        gate.visible
+            .store(true, std::sync::atomic::Ordering::Release);
+        assert!(!gate.permits_navigation(&bootstrap));
+        assert!(gate.permits_navigation(&url(super::ONBOARDING_PAGE)));
+
+        gate.handed_over
+            .store(true, std::sync::atomic::Ordering::Release);
+        assert!(gate.permits_navigation(&url("browser.html")));
+        assert!(!gate.permits_navigation(&bootstrap));
+        for onboarding in [
+            super::ONBOARDING_PAGE,
+            "onboarding.html?again",
+            "onboarding.html#scene",
+        ] {
+            assert!(!gate.permits_navigation(&url(onboarding)), "{onboarding}");
+        }
+        assert!(!gate.permits_navigation(&Url::parse("https://example.com/").unwrap()));
+
+        let browser_only = super::UiStartupGate::new(url("browser.html"));
+        browser_only
+            .visible
+            .store(true, std::sync::atomic::Ordering::Release);
+        assert!(!browser_only.permits_navigation(&bootstrap));
+        assert!(browser_only.permits_navigation(&url("browser.html")));
     }
 
     #[test]

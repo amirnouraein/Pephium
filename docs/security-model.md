@@ -1090,7 +1090,7 @@ material, packaged hostile enforcement tests on every supported OS, legal approv
 external review, and recorded resource/endurance budgets. Full capability and failure
 details are in `docs/adblock.md`.
 
-**Dependency policy.** Tauri, Tauri Runtime Wry, Wry, and adblock-rust are vendored from
+**Dependency policy.** Tauri, Tauri Runtime Wry, Wry, Tao, and adblock-rust are vendored from
 the immutable upstream revisions recorded in their respective
 `vendor/*/UPSTREAM.md` files. The Tauri patch preserves pathless ephemeral storage for
 implicit Linux incognito WebViews and rejects contradictory explicit persistent storage
@@ -1100,7 +1100,9 @@ ghost runtime state. Relative to Wry's recorded revision, its patch covers const
 WebKitGTK contexts with process swapping, enabling/asserting the sandbox before WebView
 creation, allowing an incognito view to use only an explicitly ephemeral supplied
 context (including related-view construction), and the documented Windows staged-
-construction/IPC/callback hardening.
+construction/IPC/callback hardening. The Tao copy is the published package plus one
+Windows fullscreen fix (a maximized undecorated window keeps its whole rectangle while
+fullscreen) that stays until the upstream release carrying it is adopted.
 The direct Tauri and Wry dependencies are exact-versioned, and Cargo source policy
 rejects unknown registries/git sources and requires revision-pinned git
 dependencies. CI treats frontend high-severity audits and Cargo
