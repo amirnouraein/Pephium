@@ -15,6 +15,8 @@
     controls,
     class: className = "",
     onclick,
+    onmousedown,
+    onauxclick,
     pending = false,
     shape = "rounded",
   }: {
@@ -32,6 +34,8 @@
     controls?: string;
     class?: string;
     onclick?: (event: MouseEvent) => void;
+    onmousedown?: (event: MouseEvent) => void;
+    onauxclick?: (event: MouseEvent) => void;
   } = $props();
 </script>
 
@@ -48,6 +52,8 @@
   disabled={disabled || pending}
   aria-busy={pending || undefined}
   {onclick}
+  {onmousedown}
+  {onauxclick}
   class={["icon-button", active && "icon-button-active", className]}
   style:--icon-button-size={`${buttonSize}px`}
 >

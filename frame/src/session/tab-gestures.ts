@@ -2,9 +2,10 @@ import { tabs } from "$domain/tabs";
 
 /**
  * Mouse gestures every tab's main button shares, spread onto it: a
- * middle-click duplicates the tab, and a double-click takes an Essential or
+ * middle-click closes the tab, and a double-click takes an Essential or
  * pinned tab back to the page it was kept at. Native ignores the latter for
- * any other tab.
+ * any other tab, and closes a pinned tab or an Essential the way its close
+ * button does, leaving it unloaded in its slot.
  */
 export function tabGestures(id: string) {
   return {
@@ -15,7 +16,7 @@ export function tabGestures(id: string) {
     onauxclick: (event: MouseEvent) => {
       if (event.button !== 1) return;
       event.preventDefault();
-      tabs.duplicate(id);
+      tabs.close(id);
     },
     ondblclick: () => tabs.returnHome(id),
   };

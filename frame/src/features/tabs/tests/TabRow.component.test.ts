@@ -11,7 +11,7 @@ import TabRow from "../components/TabRow.svelte";
 
 // The row asks native directly; the spies stand in for it.
 const admitted = { accepted: true, operation_id: null };
-const duplicate = vi.spyOn(commands, "tabsDuplicate").mockResolvedValue(admitted);
+const closeTab = vi.spyOn(commands, "tabsClose").mockResolvedValue(admitted);
 const returnHome = vi.spyOn(commands, "tabsReturnHome").mockResolvedValue(admitted);
 const rename = vi.spyOn(commands, "tabsRename").mockResolvedValue(admitted);
 vi.spyOn(commands, "tabMenuPopup").mockResolvedValue(true);
@@ -97,17 +97,17 @@ function renderRow(closable: boolean) {
   return { tab, props, screen: render(TabRow, props) };
 }
 
-test("a middle-click duplicates any row, pinned or not, and selects nothing", async () => {
+test("a middle-click closes any row, pinned or not, and selects nothing", async () => {
   for (const closable of [true, false]) {
-    duplicate.mockClear();
+    closeTab.mockClear();
     const { tab, props, screen } = renderRow(closable);
     const row = (await screen).getByRole("button", { name: "Docs", exact: true });
     await userEvent.click(row, { button: "middle" });
-    expect(duplicate).toHaveBeenCalledExactlyOnceWith(tab.id);
+    expect(closeTab).toHaveBeenCalledExactlyOnceWith(tab.id);
     expect(props.onClose).not.toHaveBeenCalled();
     expect(props.onSelect).not.toHaveBeenCalled();
     await userEvent.click(row, { button: "right" });
-    expect(duplicate).toHaveBeenCalledTimes(1);
+    expect(closeTab).toHaveBeenCalledTimes(1);
     (await screen).unmount();
   }
 });
