@@ -415,6 +415,12 @@ pub enum Command {
         id: ItemId,
         action: TabAction,
     },
+    /// Closes every open tab of the focused space; pinned tabs and
+    /// Essentials stay.
+    ClearSpace,
+    /// Unloads the focused space's tabs and the profile's Essentials, all but
+    /// those on screen. Each stays where it is and loads again when opened.
+    SuspendSpace,
     /// Something done to the focused profile's spaces.
     Space(Box<SpaceCommand>),
     SetWindowSize(Size),

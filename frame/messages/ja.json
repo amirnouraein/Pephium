@@ -3609,5 +3609,7 @@
   "sidebar_file_too_many": "そのファイルには Zephium が受け入れられる以上のタブ、フォルダ、スペースが含まれています",
   "sidebar_file_invalid": "そのファイルには Zephium が使えないアドレスか名前が含まれています",
   "sidebar_file_unreadable": "Zephium はそのファイルを読み書きできませんでした",
-  "sidebar_file_unavailable": "今はそれを実行できませんでした。通常のウインドウからもう一度お試しください。"
+  "sidebar_file_unavailable": "今はそれを実行できませんでした。通常のウインドウからもう一度お試しください。",
+  "space_clear_tabs": "開いているタブを閉じる",
+  "space_suspend_tabs": "すべてのタブをスリープ"
 }

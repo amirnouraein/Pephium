@@ -3609,5 +3609,7 @@
   "sidebar_file_too_many": "Ce fichier contient plus d’onglets, de dossiers ou d’espaces que Zephium ne peut en accueillir",
   "sidebar_file_invalid": "Ce fichier contient une adresse ou un nom que Zephium ne peut pas utiliser",
   "sidebar_file_unreadable": "Zephium n’a pas pu lire ou écrire ce fichier",
-  "sidebar_file_unavailable": "Zephium n’a pas pu le faire pour l’instant. Réessayez depuis une fenêtre normale."
+  "sidebar_file_unavailable": "Zephium n’a pas pu le faire pour l’instant. Réessayez depuis une fenêtre normale.",
+  "space_clear_tabs": "Fermer les onglets ouverts",
+  "space_suspend_tabs": "Suspendre tous les onglets"
 }

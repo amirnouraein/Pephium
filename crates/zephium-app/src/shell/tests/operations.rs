@@ -2023,3 +2023,97 @@ fn links_from_other_apps_follow_new_tabs_unless_placed_on_their_own() {
     shell.handle(Command::OpenExternal(vec!["https://next.example/".into()]));
     assert!(follows(&screen, active_id(&screen)));
 }
+
+#[test]
+fn clearing_a_space_closes_its_open_tabs_and_keeps_pinned_and_essentials() {
+    let (mut shell, _engine, screen) = setup();
+    shell.handle(Command::Bootstrap);
+    let kept = active_id(&screen);
+    navigate_and_commit(&mut shell, kept, "mail.example");
+    shell.handle(Command::SetTabEssential {
+        id: kept,
+        essential: true,
+        before: None,
+    });
+    shell.handle(Command::Run("tab.new".into()));
+    let pinned = active_id(&screen);
+    navigate_and_commit(&mut shell, pinned, "board.example");
+    shell.handle(Command::SetTabPinned {
+        id: pinned,
+        pinned: true,
+        before: None,
+    });
+    shell.handle(Command::Run("tab.new".into()));
+    let second = active_id(&screen);
+    navigate_and_commit(&mut shell, second, "news.example");
+    shell.handle(Command::Run("tab.new".into()));
+    let third = active_id(&screen);
+    shell.handle(Command::Activate(second));
+
+    let cleared = shell.handle_operation(Command::ClearSpace);
+    assert_ne!(cleared.outcome, OperationOutcome::Rejected);
+    for closed in [second, third] {
+        assert!(shell.items.get(closed).is_none());
+    }
+    for stays in [kept, pinned] {
+        assert!(shell.items.tab(stays).is_some());
+    }
+    let space = shell.windows.focused().unwrap().space;
+    assert!(shell
+        .today_tabs(space)
+        .iter()
+        .all(|id| ![second, third].contains(id)));
+}
+
+#[test]
+fn suspending_a_space_unloads_its_tabs_but_the_one_in_front() {
+    let (mut shell, _engine, screen) = setup();
+    shell.handle(Command::Bootstrap);
+    let essential = active_id(&screen);
+    navigate_and_commit(&mut shell, essential, "mail.example");
+    shell.handle(Command::SetTabEssential {
+        id: essential,
+        essential: true,
+        before: None,
+    });
+    shell.handle(Command::Run("tab.new".into()));
+    let pinned = active_id(&screen);
+    navigate_and_commit(&mut shell, pinned, "board.example");
+    shell.handle(Command::SetTabPinned {
+        id: pinned,
+        pinned: true,
+        before: None,
+    });
+    shell.handle(Command::Run("tab.new".into()));
+    let open = active_id(&screen);
+    navigate_and_commit(&mut shell, open, "news.example");
+    shell.handle(Command::Run("tab.new".into()));
+    let front = active_id(&screen);
+    navigate_and_commit(&mut shell, front, "docs.example");
+    for id in [essential, pinned, open, front] {
+        assert!(
+            shell.items.tab(id).unwrap().has_view(),
+            "{id} starts loaded"
+        );
+    }
+
+    let suspended = shell.handle_operation(Command::SuspendSpace);
+    assert_ne!(suspended.outcome, OperationOutcome::Rejected);
+    for id in [essential, pinned, open] {
+        let tab = shell.items.tab(id).expect("a suspended tab stays");
+        assert!(!tab.has_view(), "{id} is unloaded");
+        assert!(tab.url.is_some(), "{id} keeps its page");
+    }
+    assert!(shell.items.tab(front).unwrap().has_view());
+    assert_eq!(active_id(&screen), front);
+    assert_eq!(
+        shell.handle_operation(Command::SuspendSpace).outcome,
+        OperationOutcome::NoOp
+    );
+
+    shell.handle(Command::Activate(open));
+    assert!(
+        shell.items.tab(open).unwrap().has_view(),
+        "opening loads it again"
+    );
+}

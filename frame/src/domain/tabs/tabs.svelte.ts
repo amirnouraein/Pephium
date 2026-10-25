@@ -114,6 +114,11 @@ export function dispose() {
 export const open = () => void commands.tabsOpen();
 export const activate = (id: string) => void commands.tabsActivate(id);
 export const close = (id: string) => void commands.tabsClose(id);
+/** Closes the space's open tabs; pinned tabs and Essentials stay. */
+export const clearSpace = () => void commands.spaceClear();
+/** Unloads the space's tabs and Essentials but those on screen. Each stays
+ *  where it is and loads again when opened. */
+export const suspendSpace = () => void commands.spaceSuspend();
 /** The window's one tab, with nothing open in it yet. Closing it would only
  *  put another empty tab in its place, so it offers no close. */
 export const loneNewTab = (id: string) => {

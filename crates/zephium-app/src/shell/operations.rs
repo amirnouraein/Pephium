@@ -51,6 +51,8 @@ impl Shell {
             Command::Unsplit => self.operation_unsplit(),
             Command::LeaveSplit(id) => self.operation_leave_split(id),
             Command::TabAction { id, action } => self.operation_tab_action(id, action),
+            Command::ClearSpace => self.operation_clear_space(),
+            Command::SuspendSpace => self.operation_suspend_space(),
             Command::Space(command) => self.operation_space(*command),
             Command::DropTab { id, x, y } => self.operation_drop_tab(id, x, y),
             Command::DividerRelease { x, y } => self.operation_divider_release(x.zip(y)),
@@ -263,6 +265,61 @@ impl Shell {
             native.merge(self.close(tab));
         }
         mutation_result(native)
+    }
+
+    /// Closes every open tab of the focused space. Pinned tabs and Essentials
+    /// stay, as they do for Close Other Tabs.
+    pub(super) fn operation_clear_space(&mut self) -> OperationDisposition {
+        let Some((space, active)) = self
+            .windows
+            .focused()
+            .map(|window| (window.space, window.active))
+        else {
+            return operation_result(OperationOutcome::Rejected, OperationReason::NoFocusedWindow);
+        };
+        let mut closing = self.today_tabs(space);
+        if closing.is_empty() {
+            return operation_result(OperationOutcome::NoOp, OperationReason::StateUnchanged);
+        }
+        // The tab in front goes last, so the window moves on once instead of
+        // waking each of the others in turn on its way out.
+        if let Some(at) = active.and_then(|active| closing.iter().position(|tab| *tab == active)) {
+            let front = closing.remove(at);
+            closing.push(front);
+        }
+        let mut native = NativeWork::default();
+        for tab in closing {
+            native.merge(self.close(tab));
+        }
+        mutation_result(native)
+    }
+
+    /// Unloads the focused space's tabs and the profile's Essentials, as a
+    /// profile switch does, keeping each where it is. What is on screen stays
+    /// loaded, and a page already being discarded is left to finish.
+    pub(super) fn operation_suspend_space(&mut self) -> OperationDisposition {
+        let Some((profile, space)) = self
+            .windows
+            .focused()
+            .map(|window| (window.profile, window.space))
+        else {
+            return operation_result(OperationOutcome::Rejected, OperationReason::NoFocusedWindow);
+        };
+        let shown = self.discard_protected_leaves();
+        let mut effects = Vec::new();
+        for id in self.items.view_ids() {
+            let here = self.items.get(id).is_some_and(|item| match item.placement {
+                Placement::Favorites { profile: owner } => owner == profile,
+                Placement::Space { space: owner, .. } => owner == space,
+            });
+            if here && !shown.contains(&id) && !self.residency.discard_probes.contains_key(&id) {
+                effects.extend(self.items.hibernate(id));
+            }
+        }
+        if effects.is_empty() {
+            return operation_result(OperationOutcome::NoOp, OperationReason::StateUnchanged);
+        }
+        mutation_result(self.commit(effects))
     }
 
     /// A tab dragged out of a split stands alone; a split left with one tab

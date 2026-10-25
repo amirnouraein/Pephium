@@ -3609,5 +3609,7 @@
   "sidebar_file_too_many": "Esse arquivo tem mais abas, pastas ou espaços do que o Zephium comporta",
   "sidebar_file_invalid": "Esse arquivo tem um endereço ou nome que o Zephium não pode usar",
   "sidebar_file_unreadable": "O Zephium não conseguiu ler ou gravar esse arquivo",
-  "sidebar_file_unavailable": "O Zephium não conseguiu fazer isso agora. Tente de novo em uma janela normal."
+  "sidebar_file_unavailable": "O Zephium não conseguiu fazer isso agora. Tente de novo em uma janela normal.",
+  "space_clear_tabs": "Fechar abas abertas",
+  "space_suspend_tabs": "Suspender todas as abas"
 }

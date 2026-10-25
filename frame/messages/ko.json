@@ -3609,5 +3609,7 @@
   "sidebar_file_too_many": "그 파일에는 Zephium이 받을 수 있는 것보다 많은 탭, 폴더 또는 스페이스가 있습니다",
   "sidebar_file_invalid": "그 파일에 Zephium이 사용할 수 없는 주소나 이름이 있습니다",
   "sidebar_file_unreadable": "Zephium이 그 파일을 읽거나 쓰지 못했습니다",
-  "sidebar_file_unavailable": "지금은 할 수 없습니다. 일반 창에서 다시 시도하세요."
+  "sidebar_file_unavailable": "지금은 할 수 없습니다. 일반 창에서 다시 시도하세요.",
+  "space_clear_tabs": "열린 탭 닫기",
+  "space_suspend_tabs": "모든 탭 일시 중지"
 }

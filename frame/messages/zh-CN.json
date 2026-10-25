@@ -3609,5 +3609,7 @@
   "sidebar_file_too_many": "该文件包含的标签页、文件夹或空间超过 Zephium 可容纳的数量",
   "sidebar_file_invalid": "该文件包含 Zephium 无法使用的地址或名称",
   "sidebar_file_unreadable": "Zephium 无法读取或写入该文件",
-  "sidebar_file_unavailable": "Zephium 现在无法执行此操作。请在普通窗口中重试。"
+  "sidebar_file_unavailable": "Zephium 现在无法执行此操作。请在普通窗口中重试。",
+  "space_clear_tabs": "关闭已打开的标签页",
+  "space_suspend_tabs": "暂停所有标签页"
 }

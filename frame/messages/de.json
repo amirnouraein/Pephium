@@ -3609,5 +3609,7 @@
   "sidebar_file_too_many": "Diese Datei enthält mehr Tabs, Ordner oder Spaces, als Zephium aufnehmen kann",
   "sidebar_file_invalid": "Diese Datei enthält eine Adresse oder einen Namen, den Zephium nicht verwenden kann",
   "sidebar_file_unreadable": "Zephium konnte diese Datei nicht lesen oder schreiben",
-  "sidebar_file_unavailable": "Das geht gerade nicht. Versuche es in einem normalen Fenster erneut."
+  "sidebar_file_unavailable": "Das geht gerade nicht. Versuche es in einem normalen Fenster erneut.",
+  "space_clear_tabs": "Geöffnete Tabs schließen",
+  "space_suspend_tabs": "Alle Tabs ruhen lassen"
 }

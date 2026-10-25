@@ -1671,6 +1671,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             tabs_close,
             tabs_set_essential,
             tabs_set_pinned,
+            space_clear,
+            space_suspend,
             essentials_keep,
             essentials_release,
             profile_rename,
@@ -2793,6 +2795,29 @@ fn tabs_set_pinned(
         &shell,
         Command::SetTabPinned { id, pinned, before },
     )
+}
+
+/// Closes the focused space's open tabs; pinned tabs and Essentials stay.
+#[tauri::command]
+#[specta::specta]
+fn space_clear(caller: WebviewWindow, shell: State<'_, Handle>) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "space_clear") {
+        return rejected_operation();
+    }
+    dispatch_operation(caller.app_handle(), &shell, Command::ClearSpace)
+}
+
+/// Unloads the focused space's tabs and Essentials but those on screen.
+#[tauri::command]
+#[specta::specta]
+fn space_suspend(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "space_suspend") {
+        return rejected_operation();
+    }
+    dispatch_operation(caller.app_handle(), &shell, Command::SuspendSpace)
 }
 
 /// Onboarding keeps a site by its catalog id; native owns the address and

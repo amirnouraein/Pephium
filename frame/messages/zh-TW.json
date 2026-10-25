@@ -3609,5 +3609,7 @@
   "sidebar_file_too_many": "該檔案包含的分頁、資料夾或空間超過 Zephium 可容納的數量",
   "sidebar_file_invalid": "該檔案包含 Zephium 無法使用的網址或名稱",
   "sidebar_file_unreadable": "Zephium 無法讀取或寫入該檔案",
-  "sidebar_file_unavailable": "Zephium 目前無法執行此操作。請在一般視窗中重試。"
+  "sidebar_file_unavailable": "Zephium 目前無法執行此操作。請在一般視窗中重試。",
+  "space_clear_tabs": "關閉開啟的分頁",
+  "space_suspend_tabs": "暫停所有分頁"
 }

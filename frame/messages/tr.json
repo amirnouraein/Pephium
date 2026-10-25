@@ -3609,5 +3609,7 @@
   "sidebar_file_too_many": "Bu dosyada Zephium’un alabileceğinden fazla sekme, klasör veya alan var",
   "sidebar_file_invalid": "Bu dosyada Zephium’un kullanamayacağı bir adres veya ad var",
   "sidebar_file_unreadable": "Zephium bu dosyayı okuyamadı veya yazamadı",
-  "sidebar_file_unavailable": "Zephium bunu şu anda yapamadı. Normal bir pencereden yeniden deneyin."
+  "sidebar_file_unavailable": "Zephium bunu şu anda yapamadı. Normal bir pencereden yeniden deneyin.",
+  "space_clear_tabs": "Açık sekmeleri kapat",
+  "space_suspend_tabs": "Tüm sekmeleri askıya al"
 }

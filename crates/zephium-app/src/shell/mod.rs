@@ -827,6 +827,12 @@ impl Shell {
             Command::TabAction { id, action } => {
                 let _ = self.operation_tab_action(id, action);
             }
+            Command::ClearSpace => {
+                let _ = self.operation_clear_space();
+            }
+            Command::SuspendSpace => {
+                let _ = self.operation_suspend_space();
+            }
             Command::Space(command) => {
                 let _ = self.operation_space(*command);
             }

@@ -257,6 +257,10 @@ export const commands = {
 	tabsClose: (id: string) => __TAURI_INVOKE<OperationAdmission>("tabs_close", { id }),
 	tabsSetEssential: (id: string, essential: boolean, before: string | null) => __TAURI_INVOKE<OperationAdmission>("tabs_set_essential", { id, essential, before }),
 	tabsSetPinned: (id: string, pinned: boolean, before: string | null) => __TAURI_INVOKE<OperationAdmission>("tabs_set_pinned", { id, pinned, before }),
+	/**  Closes the focused space's open tabs; pinned tabs and Essentials stay. */
+	spaceClear: () => __TAURI_INVOKE<OperationAdmission>("space_clear"),
+	/**  Unloads the focused space's tabs and Essentials but those on screen. */
+	spaceSuspend: () => __TAURI_INVOKE<OperationAdmission>("space_suspend"),
 	/**
 	 *  Onboarding keeps a site by its catalog id; native owns the address and
 	 *  the mark, so chrome can never pin an arbitrary URL through this path.

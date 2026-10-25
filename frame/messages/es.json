@@ -3609,5 +3609,7 @@
   "sidebar_file_too_many": "Ese archivo tiene más pestañas, carpetas o espacios de los que Zephium admite",
   "sidebar_file_invalid": "Ese archivo tiene una dirección o un nombre que Zephium no puede usar",
   "sidebar_file_unreadable": "Zephium no pudo leer ni escribir ese archivo",
-  "sidebar_file_unavailable": "Zephium no pudo hacerlo ahora. Vuelve a intentarlo desde una ventana normal."
+  "sidebar_file_unavailable": "Zephium no pudo hacerlo ahora. Vuelve a intentarlo desde una ventana normal.",
+  "space_clear_tabs": "Cerrar pestañas abiertas",
+  "space_suspend_tabs": "Suspender todas las pestañas"
 }
