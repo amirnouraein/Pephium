@@ -60,11 +60,10 @@
   background: var(--favicon-plate);
 }
 
-/* A sleeping page steps further back than a resting one, and loses its
-   colour entirely, lit or not, so it reads as unloaded at a glance. */
+/* A sleeping page steps further back than a resting one, lit or not, so it
+   reads as unloaded at a glance. */
 .favicon[data-sleeping] > * {
   opacity: 0.4;
-  filter: grayscale(1);
 }
 
 .favicon-fallback {
