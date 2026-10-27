@@ -55,6 +55,9 @@
   $effect(() => {
     if (find.focusRequested() === 0 || !finding || !findInput) return;
     untrack(() => {
+      // Still the frame's active element after a click into the page, the
+      // field would ignore focus() and the keyboard would stay with the page.
+      findInput?.blur();
       findInput?.focus();
       findInput?.select();
     });
