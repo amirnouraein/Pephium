@@ -3828,5 +3828,6 @@
   "site_data_clear_failed": "Не удалось очистить данные {site}",
   "native_clear_data_for_this_site_more": "Очистить данные этого сайта…",
   "page_permission_private": "Приватные окна не сохраняют этот выбор.",
-  "page_permission_location_off": "Включите службы геолокации для Zephium в разделе «Системные настройки › Конфиденциальность и безопасность»."
+  "page_permission_location_off": "Включите службы геолокации для Zephium в разделе «Системные настройки › Конфиденциальность и безопасность».",
+  "native_scroll_to_top": "Прокрутить наверх"
 }

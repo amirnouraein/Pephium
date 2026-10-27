@@ -2164,6 +2164,25 @@ impl WebviewEngine {
     }
 }
 
+static SCROLL_TO_TOP_LABEL: std::sync::RwLock<Option<String>> = std::sync::RwLock::new(None);
+
+/// The page menu's Scroll to Top in the interface language. Until it is set
+/// the menu says it in English.
+pub fn set_scroll_to_top_label(label: String) {
+    *SCROLL_TO_TOP_LABEL
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(label);
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+pub(crate) fn scroll_to_top_label() -> String {
+    SCROLL_TO_TOP_LABEL
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone()
+        .unwrap_or_else(|| "Scroll to Top".to_owned())
+}
+
 /// Whether a tab can be muted on this system: WebView2 always, WebKit when
 /// it has the page-mute SPI.
 pub fn page_mute_supported() -> bool {

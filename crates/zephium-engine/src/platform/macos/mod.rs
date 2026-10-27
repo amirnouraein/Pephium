@@ -50,6 +50,7 @@ mod find;
 mod location;
 mod native;
 mod navigation;
+pub(crate) mod page_menu;
 pub(crate) mod page_save;
 pub mod private_api;
 pub(crate) mod proxy;

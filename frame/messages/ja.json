@@ -3828,5 +3828,6 @@
   "site_data_clear_failed": "{site} のデータを消去できませんでした",
   "native_clear_data_for_this_site_more": "このサイトのデータを消去…",
   "page_permission_private": "プライベートウインドウではこの選択は保存されません。",
-  "page_permission_location_off": "システム設定 › プライバシーとセキュリティで、Zephium の位置情報サービスをオンにしてください。"
+  "page_permission_location_off": "システム設定 › プライバシーとセキュリティで、Zephium の位置情報サービスをオンにしてください。",
+  "native_scroll_to_top": "一番上までスクロール"
 }

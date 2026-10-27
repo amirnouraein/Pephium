@@ -105,6 +105,8 @@ pub(crate) use profiles::release_linux_erasure_obligations;
 pub(crate) use profiles::release_macos_erasure_obligation;
 #[cfg(all(target_os = "macos", feature = "agentic-browser-qa"))]
 pub(crate) use scripts::protected_script_specs_for_native_probe;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+pub(crate) use scripts::SCROLL_TOP_JS;
 
 #[cfg(target_os = "windows")]
 use dispatch::queue_windows_cleanup_debt;

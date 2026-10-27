@@ -3828,5 +3828,6 @@
   "site_data_clear_failed": "Die Daten von {site} konnten nicht gelöscht werden",
   "native_clear_data_for_this_site_more": "Daten dieser Website löschen…",
   "page_permission_private": "Private Fenster speichern diese Auswahl nicht.",
-  "page_permission_location_off": "Aktiviere die Ortungsdienste für Zephium in den Systemeinstellungen unter Datenschutz & Sicherheit."
+  "page_permission_location_off": "Aktiviere die Ortungsdienste für Zephium in den Systemeinstellungen unter Datenschutz & Sicherheit.",
+  "native_scroll_to_top": "Nach oben scrollen"
 }

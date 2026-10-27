@@ -3828,5 +3828,6 @@
   "site_data_clear_failed": "Couldn't clear the data of {site}",
   "native_clear_data_for_this_site_more": "Clear Data for This Site…",
   "page_permission_private": "Private windows don't save this choice.",
-  "page_permission_location_off": "Turn on Location Services for Zephium in System Settings › Privacy & Security."
+  "page_permission_location_off": "Turn on Location Services for Zephium in System Settings › Privacy & Security.",
+  "native_scroll_to_top": "Scroll to Top"
 }

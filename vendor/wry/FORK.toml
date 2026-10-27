@@ -94,3 +94,7 @@ paths = ["src/lib.rs", "src/webview2/mod.rs", "src/webkitgtk/mod.rs", "src/wkweb
 [[patch_sets]]
 name = "optional aggregate content-rule load counts"
 paths = ["src/lib.rs", "src/wkwebview/mod.rs", "src/wkwebview/class/wry_navigation_delegate.rs"]
+
+[[patch_sets]]
+name = "page context menu items before it opens"
+paths = ["src/lib.rs", "src/wkwebview/mod.rs", "src/wkwebview/class/wry_web_view.rs"]

@@ -1960,6 +1960,8 @@ pub(crate) struct PlatformSpecificWebViewAttributes {
       ) -> Option<Retained<objc2_app_kit::NSMenu>>,
     >,
   >,
+  #[cfg(target_os = "macos")]
+  will_open_menu_handler: Option<Box<dyn Fn(&WryWebView, &objc2_app_kit::NSMenu)>>,
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -1993,6 +1995,8 @@ impl Default for PlatformSpecificWebViewAttributes {
       autofill_button_handler: None,
       #[cfg(target_os = "macos")]
       context_menu_handler: None,
+      #[cfg(target_os = "macos")]
+      will_open_menu_handler: None,
     }
   }
 }
@@ -2119,6 +2123,12 @@ pub trait WebViewBuilderExtMacos {
       ) -> Option<Retained<objc2_app_kit::NSMenu>>
       + 'static,
   ) -> Self;
+  /// Called with the page's context menu just before it opens. WebKit builds
+  /// and shows that menu itself, so this is where items can join it.
+  fn with_will_open_menu_handler(
+    self,
+    handler: impl Fn(&WryWebView, &objc2_app_kit::NSMenu) + 'static,
+  ) -> Self;
 }
 
 #[cfg(target_os = "macos")]
@@ -2201,6 +2211,14 @@ impl WebViewBuilderExtMacos for WebViewBuilder<'_> {
       + 'static,
   ) -> Self {
     self.platform_specific.context_menu_handler = Some(Box::new(handler));
+    self
+  }
+
+  fn with_will_open_menu_handler(
+    mut self,
+    handler: impl Fn(&WryWebView, &objc2_app_kit::NSMenu) + 'static,
+  ) -> Self {
+    self.platform_specific.will_open_menu_handler = Some(Box::new(handler));
     self
   }
 }

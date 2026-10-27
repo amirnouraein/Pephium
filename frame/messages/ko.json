@@ -3828,5 +3828,6 @@
   "site_data_clear_failed": "{site} 데이터를 지우지 못했어요",
   "native_clear_data_for_this_site_more": "이 사이트의 데이터 지우기…",
   "page_permission_private": "비공개 창에서는 이 선택이 저장되지 않아요.",
-  "page_permission_location_off": "시스템 설정 › 개인정보 보호 및 보안에서 Zephium의 위치 서비스를 켜세요."
+  "page_permission_location_off": "시스템 설정 › 개인정보 보호 및 보안에서 Zephium의 위치 서비스를 켜세요.",
+  "native_scroll_to_top": "맨 위로 스크롤"
 }

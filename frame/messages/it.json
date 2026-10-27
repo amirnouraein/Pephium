@@ -3828,5 +3828,6 @@
   "site_data_clear_failed": "Impossibile cancellare i dati di {site}",
   "native_clear_data_for_this_site_more": "Cancella dati di questo sito…",
   "page_permission_private": "Le finestre private non salvano questa scelta.",
-  "page_permission_location_off": "Attiva i Servizi di localizzazione per Zephium in Impostazioni di Sistema › Privacy e sicurezza."
+  "page_permission_location_off": "Attiva i Servizi di localizzazione per Zephium in Impostazioni di Sistema › Privacy e sicurezza.",
+  "native_scroll_to_top": "Scorri all’inizio"
 }

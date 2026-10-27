@@ -3828,5 +3828,6 @@
   "site_data_clear_failed": "無法清除 {site} 的資料",
   "native_clear_data_for_this_site_more": "清除此網站的資料…",
   "page_permission_private": "私密視窗不會儲存這項選擇。",
-  "page_permission_location_off": "請在「系統設定 › 隱私權與安全性」中為 Zephium 開啟定位服務。"
+  "page_permission_location_off": "請在「系統設定 › 隱私權與安全性」中為 Zephium 開啟定位服務。",
+  "native_scroll_to_top": "捲動到頂端"
 }

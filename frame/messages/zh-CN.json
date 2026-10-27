@@ -3828,5 +3828,6 @@
   "site_data_clear_failed": "无法清除 {site} 的数据",
   "native_clear_data_for_this_site_more": "清除此网站的数据…",
   "page_permission_private": "隐私窗口不会保存此选择。",
-  "page_permission_location_off": "请在“系统设置 › 隐私与安全性”中为 Zephium 打开定位服务。"
+  "page_permission_location_off": "请在“系统设置 › 隐私与安全性”中为 Zephium 打开定位服务。",
+  "native_scroll_to_top": "滚动到顶部"
 }

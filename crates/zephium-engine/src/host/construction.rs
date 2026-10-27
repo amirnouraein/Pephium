@@ -1531,6 +1531,7 @@ impl EngineHost {
                         broker.challenge(challenge, request.main_frame_url.as_deref(), responder);
                     }
                 })
+                .with_will_open_menu_handler(crate::platform::macos::page_menu::add_scroll_to_top)
                 // Only views in `views` answer: agent pages never do.
                 .with_autofill_button_handler(move || {
                     let id = autofill_item.get();

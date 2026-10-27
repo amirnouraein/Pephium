@@ -3828,5 +3828,6 @@
   "site_data_clear_failed": "Не вдалося очистити дані {site}",
   "native_clear_data_for_this_site_more": "Очистити дані цього сайту…",
   "page_permission_private": "Приватні вікна не зберігають цей вибір.",
-  "page_permission_location_off": "Увімкніть служби локації для Zephium у Системних налаштуваннях › Приватність і безпека."
+  "page_permission_location_off": "Увімкніть служби локації для Zephium у Системних налаштуваннях › Приватність і безпека.",
+  "native_scroll_to_top": "Прокрутити догори"
 }
