@@ -17,9 +17,8 @@ pub enum PermissionKind {
   /// - **Windows**: Supported via `COREWEBVIEW2_PERMISSION_KIND_GEOLOCATION`.
   /// - **Linux**: Supported via `GeolocationPermissionRequest`.
   /// - **Android**: Supported via `WebChromeClient.onGeolocationPermissionsShowPrompt`.
-  /// - **macOS**: Supported via WKUIDelegate's geolocation origin callback
-  ///   (public from macOS 27, `WKUIDelegatePrivate` before). The embedder
-  ///   still supplies the position source.
+  /// - **macOS**: Supported via WKUIDelegate's geolocation callback (public on
+  ///   macOS 27, the private spelling before it).
   /// - **iOS**: Not yet supported by platform backends.
   Geolocation,
   /// Notifications permission.
@@ -278,12 +277,14 @@ pub enum PermissionResponse {
   /// - **Android**: The default behavior continues the platform permission flow.
   #[default]
   Default,
-  /// Leave camera and microphone requests to the engine's own prompt.
+  /// Leave the request to the engine's own prompt.
   ///
   /// ## Platform-specific
   ///
   /// - **Windows**: WebView2 shows its built-in, origin-labelled prompt for
-  ///   camera and microphone requests; every other kind is denied.
+  ///   camera, microphone, geolocation, notifications, clipboard read, MIDI
+  ///   system-exclusive messages, sensors, local fonts and multiple automatic
+  ///   downloads; every other kind is denied.
   /// - **macOS / Linux / Android**: Treated as [`Self::Deny`].
   Prompt,
 }

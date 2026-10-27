@@ -71,7 +71,9 @@ mod blocker_service;
 mod browser_credentials;
 mod browser_import;
 mod content_fullscreen;
+mod data_export;
 mod default_browser;
+mod diagnostic_report;
 mod diagnostics;
 mod external_links;
 #[cfg(feature = "work-product")]
@@ -79,6 +81,7 @@ mod favicon_probe;
 mod focus_alerts;
 mod haptics;
 mod help;
+mod history_menu;
 mod intro_sound;
 mod keymap;
 mod launcher_trigger;
@@ -98,14 +101,17 @@ mod menu_text;
 mod notes;
 mod overlay;
 mod page_assist;
+mod page_source;
 #[cfg(target_os = "macos")]
 mod panel;
 mod platform;
 mod presence;
+mod private_window;
 #[cfg(target_os = "windows")]
 mod privileged_runtime_windows;
 mod profiles;
-#[cfg(any(target_os = "windows", test))]
+mod recently_closed;
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
 mod renderer_recovery;
 mod resource_close;
 mod search_providers;
@@ -250,7 +256,7 @@ const MAX_OPERATION_LEDGER_ENTRIES: usize = 1024;
 const BLOCKER_STATUS_QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(250);
 const PRE_SHELL_CLEANUP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
 
-const PRIVILEGED_PERMISSIONS_POLICY: &str = "accelerometer=(), attribution-reporting=(), autoplay=(), browsing-topics=(), camera=(), clipboard-read=(), clipboard-write=(), compute-pressure=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), join-ad-interest-group=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), private-state-token-issuance=(), private-state-token-redemption=(), publickey-credentials-get=(), run-ad-auction=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), sync-xhr=(), unload=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=()";
+const PRIVILEGED_PERMISSIONS_POLICY: &str = "accelerometer=(), attribution-reporting=(), autoplay=(), browsing-topics=(), camera=(), clipboard-read=(), clipboard-write=(self), compute-pressure=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), join-ad-interest-group=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), private-state-token-issuance=(), private-state-token-redemption=(), publickey-credentials-get=(), run-ad-auction=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), sync-xhr=(), unload=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=()";
 const PRIVILEGED_BOOTSTRAP_URL: &str = "about:blank";
 #[cfg(any(target_os = "windows", test))]
 const PRIVILEGED_WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI";
@@ -477,10 +483,8 @@ impl UiStartupGate {
         {
             return;
         }
-        #[cfg(target_os = "windows")]
-        if platform::imp::renderer::ready(window)
-            && !platform::imp::set_chrome_hidden(window, false)
-        {
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        if renderer_recovery::ready(window) && !platform::imp::set_chrome_hidden(window, false) {
             request_startup_failure(window.app_handle(), "could not reveal recovered chrome");
             return;
         }
@@ -626,7 +630,7 @@ impl UiStartupGate {
         self.visible.load(Ordering::Acquire)
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     fn prepare_recovery(&self, window: &WebviewWindow) -> Option<tauri::Url> {
         self.document_loaded.store(false, Ordering::Release);
         self.frontend_ready.store(false, Ordering::Release);
@@ -1437,6 +1441,11 @@ struct SearchChanged(zephium_ipc::SearchResults);
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, Event)]
 struct FindChanged(zephium_ipc::FindResultView);
 
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, Event)]
+struct MediaPlayerChanged(Option<zephium_ipc::MediaPlayerView>);
+
+const EVENT_MEDIA_PLAYER: &str = "zephium:media-player";
+
 const EVENT_FIND: &str = "zephium:find";
 
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, Event)]
@@ -1726,7 +1735,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             tabs_navigate,
             tabs_reload,
             tabs_answer_page_request,
+            tabs_answer_sign_in,
+            tabs_continue_past_certificate,
             diagnostics_show_logs,
+            diagnostic_report::diagnostics_report,
             tabs_back,
             tabs_forward,
             work_pane_show,
@@ -1753,7 +1765,11 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             browser_credentials::browser_credential_capability,
             browser_credentials::browser_passkey_authorization_request,
             page_permission_respond,
-            capture_stop,
+            page_permission_card_host,
+            tab_set_muted,
+            media_player,
+            site_permissions,
+            site_permission_set,
             blocker_status,
             blocker_stats,
             blocker_set_enabled,
@@ -1814,6 +1830,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             resource_call,
             notes::note_call,
             history_call,
+            browsing_data_call,
             favicon_probe,
             download_call,
             download_open_access_settings,
@@ -1837,6 +1854,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             haptics::haptic,
             bookmark_call,
             time_call,
+            zoom_call,
             focus_control,
             page_find,
             browser_import::import_sources,
@@ -1845,6 +1863,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             browser_import::import_open_permission,
             browser_import::sidebar_export,
             browser_import::sidebar_import,
+            data_export::export_browser_data,
+            history_menu::history_menu_popup,
+            page_source::page_source,
             resource_close_ready,
             tab_drop,
             divider_grab,
@@ -1880,6 +1901,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             PagePermissionPromptChanged,
             UiCommand,
             FindChanged,
+            MediaPlayerChanged,
             SearchChanged,
             LayoutChanged,
             RuntimeStatusChanged,
@@ -2121,10 +2143,15 @@ pub(crate) fn apply_chrome_presentation(
     for (const candidate of document.querySelectorAll("[data-zephium-tab-id]")) {{
       if (candidate.dataset.zephiumTabId === tab.id) {{ row = candidate; break; }}
     }}
-    if (!row || row.dataset.zephiumTabUrl !== (tab.url ?? "") ||
-        row.dataset.zephiumProjectionRevision !== tab.projection_revision) return rejected;
-    const label = row.querySelector("[data-zephium-tab-label]");
-    if (!label || label.textContent !== tab.title) return rejected;
+    // A background tab may have no row on screen (a closed folder, another
+    // space); its content is not shown, so only a row that exists must agree.
+    if (!row && active === tab.id) return rejected;
+    if (row) {{
+      if (row.dataset.zephiumTabUrl !== (tab.url ?? "") ||
+          row.dataset.zephiumProjectionRevision !== tab.projection_revision) return rejected;
+      const label = row.querySelector("[data-zephium-tab-label]");
+      if (!label || label.textContent !== tab.title) return rejected;
+    }}
     const shell = document.querySelector("[data-zephium-active-tab]");
     if (!shell) return rejected;
     if (shell.dataset.zephiumActiveTab !== (active ?? "")) return rejected;
@@ -2311,26 +2338,37 @@ const MAX_TAB_NAME_BYTES: usize = zephium_core::session::MAX_SESSION_NAME_CHARS 
 const MAX_WINDOW_COORDINATE: f64 = 1_000_000.0;
 use zephium_core::layout::{MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH};
 
-/// The tab a native context menu was opened for.
+/// The tab a native context menu was opened for, and the document whose
+/// camera or microphone it showed in use, if any.
 ///
 /// Popup menus are modal on every platform, so exactly one target can be
 /// pending at a time. The id is parsed and bounded at the IPC boundary and is
-/// revalidated by the shell actor, which ignores unknown items.
+/// revalidated by the shell actor, which ignores unknown items. Stopping
+/// capture names the document the menu was opened for, never a later one.
 #[derive(Default)]
-struct TabMenuTarget(std::sync::Mutex<Option<ItemId>>);
+struct TabMenuTarget(std::sync::Mutex<Option<TabMenuArmed>>);
+
+type TabMenuArmed = (
+    ItemId,
+    Option<zephium_core::ports::engine::NavigationPresentationId>,
+);
 
 impl TabMenuTarget {
-    fn arm(&self, id: ItemId) -> bool {
+    fn arm(
+        &self,
+        id: ItemId,
+        capture: Option<zephium_core::ports::engine::NavigationPresentationId>,
+    ) -> bool {
         match self.0.lock() {
             Ok(mut slot) => {
-                *slot = Some(id);
+                *slot = Some((id, capture));
                 true
             }
             Err(_) => false,
         }
     }
 
-    fn take(&self) -> Option<ItemId> {
+    fn take(&self) -> Option<TabMenuArmed> {
         self.0.lock().ok().and_then(|mut slot| slot.take())
     }
 }
@@ -3022,6 +3060,57 @@ fn tabs_answer_page_request(
     })
 }
 
+/// Answers the tab's sign-in prompt; no credentials cancels it. The typed
+/// values move into storage wiped on drop and are never logged.
+#[tauri::command]
+#[specta::specta]
+fn tabs_answer_sign_in(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    id: String,
+    request: u32,
+    credentials: Option<zephium_ipc::SignInCredentials>,
+) -> zephium_ipc::OperationAdmission {
+    let credentials = credentials
+        .map(|typed| zephium_core::http_auth::HttpCredentials::new(typed.username, typed.password));
+    if !authorize(&caller, CallerPolicy::Main, "tabs_answer_sign_in") {
+        return rejected_operation();
+    }
+    // Malformed credentials cancel rather than leave the page waiting.
+    let credentials = credentials.flatten();
+    dispatch_with_id(caller.app_handle(), &shell, &id, |id| {
+        Command::AnswerHttpAuth {
+            id,
+            request,
+            credentials,
+        }
+    })
+}
+
+/// Continues past the certificate the tab refused, on a host on the
+/// person's own network only, and loads the page again.
+#[tauri::command]
+#[specta::specta]
+fn tabs_continue_past_certificate(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    id: String,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(
+        &caller,
+        CallerPolicy::Main,
+        "tabs_continue_past_certificate",
+    ) {
+        return rejected_operation();
+    }
+    dispatch_with_id(
+        caller.app_handle(),
+        &shell,
+        &id,
+        Command::ContinuePastCertificate,
+    )
+}
+
 #[tauri::command]
 #[specta::specta]
 fn tabs_reload(
@@ -3033,6 +3122,38 @@ fn tabs_reload(
         return rejected_operation();
     }
     dispatch_with_id(caller.app_handle(), &shell, &id, Command::Reload)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn tab_set_muted(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    id: String,
+    muted: bool,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "tab_set_muted") {
+        return rejected_operation();
+    }
+    dispatch_with_id(caller.app_handle(), &shell, &id, |id| {
+        Command::SetTabMuted { id, muted }
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+fn media_player(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    id: String,
+    action: zephium_ipc::MediaPlayerAction,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "media_player") {
+        return rejected_operation();
+    }
+    dispatch_with_id(caller.app_handle(), &shell, &id, |id| {
+        Command::MediaPlayer { id, action }
+    })
 }
 
 #[tauri::command]
@@ -3292,6 +3413,7 @@ enum PagePermissionPromptDecisionInput {
     AlwaysAllow,
     DenyOnce,
     AlwaysDeny,
+    Dismiss,
 }
 
 /// Answers only the exact Shell-projected foreground page request. Origin and
@@ -3332,6 +3454,7 @@ fn page_permission_respond(
         PagePermissionPromptDecisionInput::AlwaysAllow => PagePermissionPromptDecision::AlwaysAllow,
         PagePermissionPromptDecisionInput::DenyOnce => PagePermissionPromptDecision::DenyOnce,
         PagePermissionPromptDecisionInput::AlwaysDeny => PagePermissionPromptDecision::AlwaysDeny,
+        PagePermissionPromptDecisionInput::Dismiss => PagePermissionPromptDecision::Dismiss,
     };
     dispatch_operation(
         caller.app_handle(),
@@ -3345,32 +3468,105 @@ fn page_permission_respond(
     )
 }
 
+/// Whether the expanded sidebar's address field is on screen to hold the
+/// page-permission prompt. While it is not, the prompt is a window-modal
+/// sheet and the page leaves the screen.
 #[tauri::command]
 #[specta::specta]
-fn capture_stop(
+fn page_permission_card_host(caller: WebviewWindow, shell: State<'_, Handle>, available: bool) {
+    if !authorize(&caller, CallerPolicy::Main, "page_permission_card_host")
+        || shutdown_started(caller.app_handle())
+    {
+        return;
+    }
+    shell.dispatch(Command::SetPagePermissionCardHost(available));
+}
+
+static SITE_PERMISSIONS_QUERY_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
+
+/// The focused profile's saved site decisions, of `origin` only when given.
+/// The actor picks the profile; chrome cannot name one.
+#[tauri::command]
+#[specta::specta]
+async fn site_permissions(
     caller: WebviewWindow,
     shell: State<'_, Handle>,
-    item_id: String,
-    navigation_id: String,
+    origin: Option<String>,
+) -> Result<zephium_ipc::SitePermissionsView, ()> {
+    if !authorize(&caller, CallerPolicy::Main, "site_permissions") {
+        return Err(());
+    }
+    let origin = match origin {
+        Some(origin) => {
+            Some(zephium_core::permissions::PageOrigin::parse_exact(&origin).map_err(|_| ())?)
+        }
+        None => None,
+    };
+    if SITE_PERMISSIONS_QUERY_IN_FLIGHT
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err(());
+    }
+    let _guard = AtomicFlagReset(&SITE_PERMISSIONS_QUERY_IN_FLIGHT);
+    let request = shell.site_permissions(origin);
+    tauri::async_runtime::spawn_blocking(move || {
+        request
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .ok()
+            .flatten()
+    })
+    .await
+    .ok()
+    .flatten()
+    .ok_or(())
+}
+
+/// Changes one saved decision of the focused profile; no decision forgets it,
+/// so the site is asked again.
+#[tauri::command]
+#[specta::specta]
+fn site_permission_set(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    origin: String,
+    kind: zephium_ipc::SitePermissionKindView,
+    decision: Option<zephium_ipc::SitePermissionDecisionView>,
 ) -> zephium_ipc::OperationAdmission {
-    if !authorize(&caller, CallerPolicy::Main, "capture_stop")
+    use zephium_core::permissions::{RememberedPagePermission, SitePermissionKind as Kind};
+    use zephium_ipc::SitePermissionKindView as View;
+    if !authorize(&caller, CallerPolicy::Main, "site_permission_set")
         || shutdown_started(caller.app_handle())
-        || !bounded(&item_id, MAX_ITEM_ID_BYTES)
     {
         return rejected_operation();
     }
-    let Some(item) = ItemId::parse(&item_id).filter(|item| item.to_string() == item_id) else {
+    let Ok(origin) = zephium_core::permissions::PageOrigin::parse_exact(&origin) else {
         return rejected_operation();
     };
-    let Some(navigation) = fixed_nonzero_hex(&navigation_id)
-        .map(zephium_core::ports::engine::NavigationPresentationId::from_raw)
-    else {
-        return rejected_operation();
+    let kind = match kind {
+        View::Camera => Kind::Camera,
+        View::Microphone => Kind::Microphone,
+        View::Geolocation => Kind::Geolocation,
+        View::Notifications => Kind::Notifications,
+        View::ClipboardRead => Kind::ClipboardRead,
+        View::Midi => Kind::Midi,
+        View::Sensors => Kind::Sensors,
+        View::LocalFonts => Kind::LocalFonts,
+        View::AutomaticDownloads => Kind::AutomaticDownloads,
+        View::Popups => Kind::Popups,
     };
+    let decision = decision.map(|decision| match decision {
+        zephium_ipc::SitePermissionDecisionView::Allow => RememberedPagePermission::Allow,
+        zephium_ipc::SitePermissionDecisionView::Block => RememberedPagePermission::Deny,
+    });
     dispatch_operation(
         caller.app_handle(),
         &shell,
-        Command::StopMediaCapture { item, navigation },
+        Command::SetSitePermission {
+            origin,
+            kind,
+            decision,
+        },
     )
 }
 
@@ -3554,12 +3750,37 @@ fn execute_command(app: &tauri::AppHandle, id: &str) -> zephium_ipc::OperationAd
     if shutdown_started(app) {
         return rejected_operation();
     }
+    let id = zephium_core::commands::runs_as(id);
     // A feature switched off has no way in, from any menu, key or launcher.
     if !app
         .try_state::<keymap::Keymap>()
         .is_none_or(|keymap| keymap.offers(id))
     {
         return rejected_operation();
+    }
+    if id == help::DIAGNOSTICS {
+        return execute_command(app, "settings.about");
+    }
+    if id == "settings.clearData" {
+        let _ = try_emit_to_privileged(app, MAIN_LABEL, EVENT_UI, &"settings.section.privacy");
+        return execute_command(app, "browser.settings");
+    }
+    // A page that holds the screen is left with its own controls.
+    if id == "window.fullscreen" {
+        let Some(window) = app.get_webview_window(MAIN_LABEL) else {
+            return rejected_operation();
+        };
+        return if !content_fullscreen::held()
+            && app
+                .run_on_main_thread(move || {
+                    let _ = window.set_fullscreen(!window.is_fullscreen().unwrap_or(false));
+                })
+                .is_ok()
+        {
+            accepted_ui_operation()
+        } else {
+            rejected_operation()
+        };
     }
     if matches!(
         id,
@@ -3634,8 +3855,10 @@ fn execute_command(app: &tauri::AppHandle, id: &str) -> zephium_ipc::OperationAd
     }
     // Site protection acts on the frame's focused page state, and an
     // extension's button opens from the frame, which holds its action.
-    if matches!(id, PROTECTION_SITE_COMMAND | PROTECTION_HIDE_COMMAND)
-        || id.starts_with(EXTENSION_ACTION_COMMAND)
+    if matches!(
+        id,
+        PROTECTION_SITE_COMMAND | PROTECTION_HIDE_COMMAND | PAGE_CLEAR_SITE_DATA_COMMAND
+    ) || id.starts_with(EXTENSION_ACTION_COMMAND)
     {
         return if try_emit_to_privileged(app, MAIN_LABEL, EVENT_UI, &id) {
             accepted_ui_operation()
@@ -3709,8 +3932,14 @@ fn execute_command(app: &tauri::AppHandle, id: &str) -> zephium_ipc::OperationAd
     if let Some(action) = id.strip_prefix("tabmenu.") {
         return execute_tab_menu_action(app, action);
     }
+    if let Some(step) = id.strip_prefix(history_menu::ID_PREFIX) {
+        return history_menu::execute(app, step);
+    }
     if let Some(admission) = spaces::execute(app, id) {
         return admission;
+    }
+    if matches!(id, private_window::REGULAR | private_window::PRIVATE) {
+        private_window::settle_click(app);
     }
     // Sidebar presentation is privileged-chrome state persisted through the
     // settings allowlist, not an actor mutation. Deliver the intent and let
@@ -3738,6 +3967,13 @@ fn execute_command(app: &tauri::AppHandle, id: &str) -> zephium_ipc::OperationAd
         }
         return rejected_operation();
     }
+    if id.starts_with(recently_closed::ITEM) {
+        return app
+            .try_state::<Handle>()
+            .map_or_else(rejected_operation, |shell| {
+                dispatch_operation(app, &shell, Command::Run(id.to_string()))
+            });
+    }
     if zephium_core::commands::get(id).is_some() {
         if let Some(shell) = app.try_state::<Handle>() {
             return dispatch_operation(app, &shell, Command::Run(id.to_string()));
@@ -3756,7 +3992,7 @@ fn execute_tab_menu_action(
     let Some(target) = app.try_state::<TabMenuTarget>() else {
         return rejected_operation();
     };
-    let Some(id) = target.take() else {
+    let Some((id, capture)) = target.take() else {
         return rejected_operation();
     };
     if action == "rename" {
@@ -3771,6 +4007,20 @@ fn execute_tab_menu_action(
         // The clipboard write stays in privileged chrome, which already holds
         // the authoritative URL for this tab. Native never handles page text.
         return if try_emit_to_privileged(app, MAIN_LABEL, EVENT_UI, &TAB_MENU_COPY_LINK_COMMAND) {
+            accepted_ui_operation()
+        } else {
+            rejected_operation()
+        };
+    }
+    if action == "clearSiteData" {
+        // The confirmation is privileged chrome: it names the site, and the
+        // frame asks native to clear only after the person agrees.
+        return if try_emit_to_privileged(
+            app,
+            MAIN_LABEL,
+            EVENT_UI,
+            &TAB_MENU_CLEAR_SITE_DATA_COMMAND,
+        ) {
             accepted_ui_operation()
         } else {
             rejected_operation()
@@ -3798,6 +4048,25 @@ fn execute_tab_menu_action(
         "closeOthers" => dispatch_operation(app, &shell, tab_action(TabAction::CloseOthers)),
         "closeBelow" => dispatch_operation(app, &shell, tab_action(TabAction::CloseBelow)),
         "keep" => dispatch_operation(app, &shell, keep(true)),
+        "stopCapture" => match capture {
+            Some(navigation) => dispatch_operation(
+                app,
+                &shell,
+                Command::StopMediaCapture {
+                    item: id,
+                    navigation,
+                },
+            ),
+            None => rejected_operation(),
+        },
+        "mute" | "unmute" => dispatch_operation(
+            app,
+            &shell,
+            Command::SetTabMuted {
+                id,
+                muted: action == "mute",
+            },
+        ),
         "unkeep" => dispatch_operation(app, &shell, keep(false)),
         "pin" => dispatch_operation(app, &shell, pin(true)),
         "unpin" => dispatch_operation(app, &shell, pin(false)),
@@ -4411,6 +4680,52 @@ async fn history_call(
     }
 }
 
+/// Clears what the focused profile's pages stored, or lists and removes it
+/// site by site. Clearing can take a while on a large cache, so the wait is
+/// longer than a history read's.
+#[tauri::command]
+#[specta::specta]
+async fn browsing_data_call(
+    caller: WebviewWindow,
+    app: tauri::AppHandle,
+    expected_profile: String,
+    call: zephium_ipc::BrowsingDataCall,
+) -> zephium_ipc::BrowsingDataResponse {
+    use zephium_ipc::{BrowsingDataError, BrowsingDataResponse};
+    let failed = |error| BrowsingDataResponse::Error { error };
+    if !authorize(&caller, CallerPolicy::Main, "browsing_data_call") || shutdown_started(&app) {
+        return failed(BrowsingDataError::Unavailable);
+    }
+    if !call.validate() {
+        return failed(BrowsingDataError::Invalid);
+    }
+    let Some(expected_profile) =
+        ProfileId::parse(&expected_profile).filter(|id| id.to_string() == expected_profile)
+    else {
+        return failed(BrowsingDataError::Invalid);
+    };
+    static ADMISSION: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+    let Ok(permit) = ADMISSION.try_acquire() else {
+        return failed(BrowsingDataError::Capacity);
+    };
+    let (send, receive) = tokio::sync::oneshot::channel();
+    let shell = app.state::<Handle>().inner().clone();
+    if !shell.dispatch(Command::BrowsingDataCall {
+        expected_profile,
+        call: Box::new(call),
+        done: zephium_app::BrowsingDataCompletion::new(move |response| {
+            let _permit = permit;
+            let _ = send.send(response);
+        }),
+    }) {
+        return failed(BrowsingDataError::Unavailable);
+    }
+    match tokio::time::timeout(std::time::Duration::from_secs(45), receive).await {
+        Ok(Ok(response)) => response,
+        _ => failed(BrowsingDataError::Unavailable),
+    }
+}
+
 /// Finds `query` in the page in front, stepping forward or back when it
 /// repeats; no query ends the search. Results arrive as `zephium:find`.
 #[tauri::command]
@@ -4518,6 +4833,49 @@ async fn time_call(
     match tokio::time::timeout(std::time::Duration::from_secs(8), receive).await {
         Ok(Ok(response)) => response,
         _ => failed(TimeError::Unavailable),
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn zoom_call(
+    caller: WebviewWindow,
+    app: tauri::AppHandle,
+    expected_profile: String,
+    call: zephium_ipc::ZoomCall,
+) -> zephium_ipc::ZoomResponse {
+    use zephium_ipc::{ZoomError, ZoomResponse};
+    let failed = |error| ZoomResponse::Error { error };
+    if !authorize(&caller, CallerPolicy::Main, "zoom_call") || shutdown_started(&app) {
+        return failed(ZoomError::Unavailable);
+    }
+    if !call.validate() {
+        return failed(ZoomError::Invalid);
+    }
+    let Some(expected_profile) =
+        ProfileId::parse(&expected_profile).filter(|id| id.to_string() == expected_profile)
+    else {
+        return failed(ZoomError::Invalid);
+    };
+    let shell = app.state::<Handle>().inner().clone();
+    static ADMISSION: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+    let Ok(permit) = ADMISSION.try_acquire() else {
+        return failed(ZoomError::Capacity);
+    };
+    let (send, receive) = tokio::sync::oneshot::channel();
+    if !shell.dispatch(Command::ZoomCall {
+        expected_profile,
+        call: Box::new(call),
+        done: zephium_app::ZoomCompletion::new(move |response| {
+            let _permit = permit;
+            let _ = send.send(response);
+        }),
+    }) {
+        return failed(ZoomError::Unavailable);
+    }
+    match tokio::time::timeout(std::time::Duration::from_secs(8), receive).await {
+        Ok(Ok(response)) => response,
+        _ => failed(ZoomError::Unavailable),
     }
 }
 
@@ -4648,10 +5006,19 @@ fn tab_menu_popup(
     ) else {
         return false;
     };
+    let capture = match context.capture.as_deref() {
+        Some(navigation) => match fixed_nonzero_hex(navigation)
+            .map(zephium_core::ports::engine::NavigationPresentationId::from_raw)
+        {
+            Some(navigation) => Some(navigation),
+            None => return false,
+        },
+        None => None,
+    };
     let Some(target) = app.try_state::<TabMenuTarget>() else {
         return false;
     };
-    if !target.arm(item) {
+    if !target.arm(item, capture) {
         return false;
     }
     let Ok(menu) = build_tab_menu(&app, context) else {
@@ -4748,6 +5115,7 @@ fn sidebar_menu_popup(
     y: f64,
     site_protected: Option<bool>,
     can_hide: bool,
+    can_clear_data: bool,
     extensions: Vec<SidebarMenuExtension>,
     manage_extensions: bool,
 ) -> bool {
@@ -4777,6 +5145,7 @@ fn sidebar_menu_popup(
         &keymap,
         site_protected,
         can_hide,
+        can_clear_data,
         &extensions,
         manage_extensions,
     ) else {
@@ -4903,8 +5272,8 @@ fn panel_ready(
     overlay: State<'_, overlay::Overlay>,
 ) -> Option<zephium_ipc::PanelState> {
     authorize(&caller, CallerPolicy::Panel, "panel_ready").then(|| {
-        #[cfg(target_os = "windows")]
-        platform::imp::renderer::ready(&caller);
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        renderer_recovery::ready(&caller);
         overlay.ready()
     })
 }
@@ -5319,6 +5688,7 @@ fn build_menu(
         .item(&item("note.new")?)
         .item(&item("split.choose")?)
         .separator()
+        .item(&item("page.save")?)
         .item(&item("page.print")?)
         .separator()
         .item(&item("tab.close")?)
@@ -5339,8 +5709,10 @@ fn build_menu(
         .select_all_with_text(menu_text::label("Select All"))
         .separator()
         .item(&find)
-        .item(&item("page.copyLink")?)
-        .build()?;
+        .item(&item("page.copyLink")?);
+    #[cfg(target_os = "macos")]
+    let edit = edit.separator().item(&item("page.autofillPassword")?);
+    let edit = edit.build()?;
     let appearance = SubmenuBuilder::new(handle, menu_text::label("Appearance"))
         .item(&item("theme.system")?)
         .item(&item("theme.light")?)
@@ -5348,6 +5720,7 @@ fn build_menu(
         .build()?;
     let view = SubmenuBuilder::new(handle, menu_text::label("View"))
         .item(&item("nav.reload")?)
+        .item(&item("nav.hardReload")?)
         .item(&item("nav.stop")?)
         .separator()
         .item(&item("zoom.in")?)
@@ -5358,6 +5731,7 @@ fn build_menu(
         .item(&appearance)
         .separator()
         .item(&item("url.focus")?)
+        .item(&item("page.viewSource")?)
         .item(&item("page.devtools")?);
     let view = if work_pane {
         let mut view = view.separator();
@@ -5372,8 +5746,10 @@ fn build_menu(
     let history = SubmenuBuilder::new(handle, menu_text::label("History"))
         .item(&item("nav.back")?)
         .item(&item("nav.forward")?)
+        .item(&item("nav.home")?)
         .separator()
         .item(&item("tab.reopen")?)
+        .item(&recently_closed::build_menu_section(handle)?)
         .item(&item("browser.history")?)
         .build()?;
     let bookmarks = SubmenuBuilder::new(handle, menu_text::label("Bookmarks"))
@@ -5385,6 +5761,13 @@ fn build_menu(
         .minimize_with_text(menu_text::label("Minimize"));
     #[cfg(target_os = "macos")]
     let window = window.fullscreen_with_text(menu_text::label("Enter Full Screen"));
+    let sides = private_window::items(handle, &resolved)?;
+    let window = window.separator().item(&item("window.togglePrivate")?);
+    let window = if sides.is_empty() {
+        window
+    } else {
+        window.items(&private_window::refs(&sides))
+    };
     let window = window
         .separator()
         .item(&item("tab.next")?)
@@ -5489,6 +5872,7 @@ fn build_add_menu(
 /// Delivered to privileged chrome, which holds the authoritative URL for the
 /// armed tab. Native code never handles page-derived text for the clipboard.
 const TAB_MENU_COPY_LINK_COMMAND: &str = "tab.copyLink";
+const TAB_MENU_CLEAR_SITE_DATA_COMMAND: &str = "tab.clearSiteData";
 
 /// Delivered to privileged chrome, which edits the armed tab's name in place.
 const TAB_MENU_RENAME_COMMAND: &str = "tab.rename";
@@ -5508,6 +5892,10 @@ const SIDEBAR_MENU_COMMAND_IDS: [&str; 4] = [
 const PROTECTION_SITE_COMMAND: &str = "protection.site";
 const PROTECTION_HIDE_COMMAND: &str = "protection.hide";
 
+/// The rail's menu asks to clear the data of the page in front; the frame
+/// names the site in its confirmation, as it does for a tab's menu.
+const PAGE_CLEAR_SITE_DATA_COMMAND: &str = "page.clearSiteData";
+
 /// The bookmark panel arms the row it opened the menu on and applies the
 /// choice itself, through the same calls a click makes. Native only relays
 /// which entry was chosen, so it never holds a bookmark id.
@@ -5520,7 +5908,7 @@ const BOOKMARK_MENU_ACTION_IDS: [&str; 6] = [
     "bookmarkmenu.removeFolder",
 ];
 
-const TAB_MENU_ACTION_IDS: [&str; 13] = [
+const TAB_MENU_ACTION_IDS: [&str; 17] = [
     "tabmenu.reload",
     "tabmenu.duplicate",
     "tabmenu.copyLink",
@@ -5531,14 +5919,19 @@ const TAB_MENU_ACTION_IDS: [&str; 13] = [
     "tabmenu.close",
     "tabmenu.closeOthers",
     "tabmenu.closeBelow",
+    "tabmenu.mute",
+    "tabmenu.unmute",
+    "tabmenu.stopCapture",
+    "tabmenu.clearSiteData",
     "tabmenu.pin",
     "tabmenu.unpin",
     "tabmenu.rename",
 ];
+const TAB_MENU_CLEAR_SITE_DATA: usize = 13;
 
 /// What the tab menu can offer for the tab it opens on, as the sidebar sees
 /// it. Only availability: the shell checks every action again.
-#[derive(Clone, Copy, Debug, Deserialize, specta::Type)]
+#[derive(Clone, Debug, Deserialize, specta::Type)]
 struct TabMenuContext {
     /// A web page is loaded, so it can be copied, duplicated or bookmarked.
     page: bool,
@@ -5550,15 +5943,24 @@ struct TabMenuContext {
     others: bool,
     /// Open tabs follow this one.
     below: bool,
+    /// The person muted this tab.
+    muted: bool,
+    /// The document whose camera or microphone is in use.
+    capture: Option<String>,
+    /// Only what acts on the page's camera, microphone and sound, for the
+    /// in-use indicator.
+    media_only: bool,
 }
 
 /// `site_protected` is the page's protection standing, absent where site
-/// controls do not apply; the frame owns both actions.
+/// controls do not apply; the frame owns both actions, and clearing the data
+/// of a page, offered where the page keeps any.
 fn build_sidebar_menu(
     handle: &tauri::AppHandle,
     overrides: &std::collections::HashMap<String, String>,
     site_protected: Option<bool>,
     can_hide: bool,
+    can_clear_data: bool,
     extensions: &[SidebarMenuExtension],
     manage_extensions: bool,
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
@@ -5606,6 +6008,12 @@ fn build_sidebar_menu(
         };
         extension_items.push(item);
     }
+    let clear_rule = PredefinedMenuItem::separator(handle)?;
+    let clear = MenuItemBuilder::with_id(
+        PAGE_CLEAR_SITE_DATA_COMMAND,
+        menu_text::label("Clear Data for This Site…"),
+    )
+    .build(handle)?;
     let extension_rule = PredefinedMenuItem::separator(handle)?;
     let manage =
         MenuItemBuilder::with_id("extensions.manage", menu_text::label("Manage Extensions…"))
@@ -5613,6 +6021,12 @@ fn build_sidebar_menu(
     let mut items: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&back, &forward, &reload];
     if let Some((rule, site, hide)) = &protection {
         items.extend([rule as &dyn IsMenuItem<tauri::Wry>, site, hide]);
+    }
+    if can_clear_data {
+        if protection.is_none() {
+            items.push(&clear_rule);
+        }
+        items.push(&clear);
     }
     if manage_extensions {
         items.push(&extension_rule);
@@ -5657,6 +6071,7 @@ fn build_chrome_menu(
         |id: &str, enabled: bool| build_command_menu_item_enabled(handle, &resolved, id, enabled);
     let new_tab = item("tab.new", true)?;
     let new_private = item("window.newPrivate", true)?;
+    let sides = private_window::items(handle, &resolved)?;
     let reopen = item("tab.reopen", true)?;
     let first = PredefinedMenuItem::separator(handle)?;
     let bookmark = item("bookmark.add", page)?;
@@ -5667,23 +6082,21 @@ fn build_chrome_menu(
     let third = PredefinedMenuItem::separator(handle)?;
     let bookmarks = item("tool.bookmarks", true)?;
     let settings = item("browser.settings", true)?;
-    Menu::with_items(
-        handle,
-        &[
-            &new_tab,
-            &new_private,
-            &reopen,
-            &first,
-            &bookmark,
-            &copy_link,
-            &second,
-            &split,
-            &compact,
-            &third,
-            &bookmarks,
-            &settings,
-        ],
-    )
+    let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&new_tab, &new_private];
+    items.extend(private_window::refs(&sides));
+    items.extend([
+        &reopen as &dyn tauri::menu::IsMenuItem<tauri::Wry>,
+        &first,
+        &bookmark,
+        &copy_link,
+        &second,
+        &split,
+        &compact,
+        &third,
+        &bookmarks,
+        &settings,
+    ]);
+    Menu::with_items(handle, &items)
 }
 
 fn build_tab_menu(
@@ -5704,8 +6117,13 @@ fn build_tab_menu(
     let rename = if context.essential {
         None
     } else {
-        Some(item(12, "Rename Tab", context.page)?)
+        Some(item(16, "Rename Tab", context.page)?)
     };
+    let clear_site_data = item(
+        TAB_MENU_CLEAR_SITE_DATA,
+        "Clear Data for This Site…",
+        context.page,
+    )?;
     let first = PredefinedMenuItem::separator(handle)?;
     let keep = if context.essential {
         item(5, "Remove from Essentials", true)?
@@ -5717,11 +6135,30 @@ fn build_tab_menu(
     let pin = if context.essential {
         None
     } else if context.pinned {
-        Some(item(11, "Unpin Tab", true)?)
+        Some(item(15, "Unpin Tab", true)?)
     } else {
-        Some(item(10, "Pin Tab", context.page)?)
+        Some(item(14, "Pin Tab", context.page)?)
     };
     let split = item(6, "Open in Split View", context.can_split)?;
+    let mute = if !zephium_engine::page_mute_supported() {
+        None
+    } else if context.muted {
+        Some(item(11, "Unmute Tab", true)?)
+    } else {
+        Some(item(10, "Mute Tab", context.page)?)
+    };
+    let stop_capture = match context.capture {
+        Some(_) => Some(item(12, "Stop Camera and Microphone", true)?),
+        None => None,
+    };
+    if context.media_only {
+        let items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = stop_capture
+            .iter()
+            .chain(mute.iter())
+            .map(|item| item as &dyn tauri::menu::IsMenuItem<tauri::Wry>)
+            .collect();
+        return Menu::with_items(handle, &items);
+    }
     let second = PredefinedMenuItem::separator(handle)?;
     let close = item(7, "Close Tab", true)?;
     let others = item(8, "Close Other Tabs", context.others)?;
@@ -5737,13 +6174,22 @@ fn build_tab_menu(
     if let Some(rename) = &rename {
         items.push(rename);
     }
-    items.push(&first);
+    items.extend([
+        &clear_site_data as &dyn tauri::menu::IsMenuItem<tauri::Wry>,
+        &first,
+    ]);
     if let Some(pin) = &pin {
         items.push(pin);
     }
     items.extend([&keep as &dyn tauri::menu::IsMenuItem<tauri::Wry>, &split]);
     if let Some(move_to) = &move_to {
         items.push(move_to);
+    }
+    if let Some(mute) = &mute {
+        items.push(mute);
+    }
+    if let Some(stop_capture) = &stop_capture {
+        items.push(stop_capture);
     }
     items.extend([
         &second as &dyn tauri::menu::IsMenuItem<tauri::Wry>,
@@ -5827,6 +6273,7 @@ fn build_profile_menu(
     let first = PredefinedMenuItem::separator(handle)?;
     let new_tab = item("tab.new")?;
     let new_private = item("window.newPrivate")?;
+    let sides = private_window::items(handle, &resolved)?;
     let split =
         MenuItemBuilder::with_id("split.choose", menu_text::label("Split View…")).build(handle)?;
     let second = PredefinedMenuItem::separator(handle)?;
@@ -5841,28 +6288,24 @@ fn build_profile_menu(
     let third = PredefinedMenuItem::separator(handle)?;
     let settings = item("browser.settings")?;
     let quit = build_quit_menu_item(handle)?;
-    Menu::with_items(
-        handle,
-        &[
-            &profile,
-            &account,
-            &first,
-            &new_tab,
-            &new_private,
-            &split,
-            &second,
-            &notes,
-            &tasks,
-            &time,
-            &history,
-            &downloads,
-            &bookmarks,
-            &extensions,
-            &third,
-            &settings,
-            &quit,
-        ],
-    )
+    let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> =
+        vec![&profile, &account, &first, &new_tab, &new_private];
+    items.extend(private_window::refs(&sides));
+    items.extend([
+        &split as &dyn tauri::menu::IsMenuItem<tauri::Wry>,
+        &second,
+        &notes,
+        &tasks,
+        &time,
+        &history,
+        &downloads,
+        &bookmarks,
+        &extensions,
+        &third,
+        &settings,
+        &quit,
+    ]);
+    Menu::with_items(handle, &items)
 }
 
 fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
@@ -6056,6 +6499,19 @@ pub fn run() {
     // backend below and uses either direct X11 grabs or the desktop portal.
     #[cfg(not(target_os = "linux"))]
     let builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+    // Windows hears the same from WebView2 ProcessFailed. Any other WebView
+    // keeps Tauri's own plain reload, which this hook replaces for all.
+    #[cfg(target_os = "macos")]
+    let builder = builder.on_web_content_process_terminate(|webview| {
+        let label = webview.label().to_owned();
+        if !renderer_recovery::owns(&label) {
+            let _ = webview.reload();
+            return;
+        }
+        let app = webview.app_handle().clone();
+        let target = app.clone();
+        let _ = app.run_on_main_thread(move || renderer_recovery::failed(&target, &label, false));
+    });
     let app = builder
         .invoke_handler(specta.invoke_handler())
         // This state must predate the setup hook: every environmental failure
@@ -6255,8 +6711,8 @@ pub fn run() {
                 UiStartupGate::new(app_url.clone())
             };
             app.manage(ui_startup_gate.clone());
-            #[cfg(target_os = "windows")]
-            app.manage(platform::imp::renderer::Renderers::default());
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            app.manage(renderer_recovery::Renderers::default());
             let page_gate = ui_startup_gate.clone();
             #[cfg(target_os = "windows")]
             setup_privileged_environments
@@ -6449,6 +6905,7 @@ pub fn run() {
             let operation_ledger = OperationLedger::default();
             app.manage(operation_ledger.clone());
             app.manage(TabMenuTarget::default());
+            app.manage(history_menu::HistoryMenuTarget::default());
 
             app.manage(keymap::Keymap::load());
             app.manage(browser_import::ImportJobs::default());
@@ -6463,6 +6920,20 @@ pub fn run() {
             let keys_engine = engine.clone();
             app.state::<keymap::Keymap>()
                 .attach_engine(Box::new(move |table| keys_engine.set_shortcuts(table)));
+            #[cfg(target_os = "macos")]
+            let _ = std::thread::Builder::new()
+                .name("webkit-private-api".into())
+                .spawn(|| {
+                    let missing = zephium_engine::missing_private_webkit_api();
+                    if missing.is_empty() {
+                        write_diagnostic(format_args!("webkit: private api present"));
+                    } else {
+                        write_diagnostic(format_args!(
+                            "webkit: missing private api {}",
+                            missing.join(", ")
+                        ));
+                    }
+                });
             #[cfg(target_os = "macos")]
             {
                 let shortcut_app = handle.clone();
@@ -6647,7 +7118,12 @@ pub fn run() {
                     }
                 }
                 Projection::Profiles(view) => {
+                    private_window::follow(&emit_handle, &view);
                     emit_to_privileged(&emit_handle, MAIN_LABEL, "zephium:profiles", &view)
+                }
+                Projection::RecentlyClosed(tabs) => recently_closed::follow(&emit_handle, &tabs),
+                Projection::MediaPlayer(player) => {
+                    emit_to_privileged(&emit_handle, MAIN_LABEL, EVENT_MEDIA_PLAYER, &player)
                 }
 
             });
@@ -7337,6 +7813,7 @@ mod tests {
         assert!(source.contains("| \"settings.about\""));
         assert!(source.contains("help::url(id)"));
         assert!(source.contains("id == help::MENU"));
+        assert!(source.contains("id == help::DIAGNOSTICS"));
     }
 
     #[test]
@@ -7467,10 +7944,18 @@ mod tests {
                 "tabmenu.close",
                 "tabmenu.closeOthers",
                 "tabmenu.closeBelow",
+                "tabmenu.mute",
+                "tabmenu.unmute",
+                "tabmenu.stopCapture",
+                "tabmenu.clearSiteData",
                 "tabmenu.pin",
                 "tabmenu.unpin",
                 "tabmenu.rename"
             ]
+        );
+        assert_eq!(
+            super::TAB_MENU_ACTION_IDS[super::TAB_MENU_CLEAR_SITE_DATA],
+            "tabmenu.clearSiteData"
         );
         // Context-menu actions carry their own target and must never collide
         // with the registry ids the launcher and the keymap may run directly.
@@ -7488,8 +7973,9 @@ mod tests {
         assert_eq!(target.take(), None);
 
         let id = zephium_core::ids::ItemId::generate();
-        assert!(target.arm(id));
-        assert_eq!(target.take(), Some(id));
+        let document = zephium_core::ports::engine::NavigationPresentationId::from_raw(7);
+        assert!(target.arm(id, Some(document)));
+        assert_eq!(target.take(), Some((id, Some(document))));
         // A duplicated or delayed menu event cannot replay against a stale tab.
         assert_eq!(target.take(), None);
     }
@@ -8923,6 +9409,16 @@ mod tests {
         ));
         assert!(plist.contains("<key>NSSpeechRecognitionUsageDescription</key>"));
         assert!(plist.contains("Zephium turns what you dictate in Work into text on this Mac."));
+        for key in [
+            "NSLocationUsageDescription",
+            "NSLocationWhenInUseUsageDescription",
+        ] {
+            assert!(plist.contains(&format!("<key>{key}</key>")), "{key}");
+        }
+        let entitlements = include_str!("../Entitlements.plist");
+        assert!(
+            entitlements.contains("<key>com.apple.security.personal-information.location</key>")
+        );
     }
 
     #[test]

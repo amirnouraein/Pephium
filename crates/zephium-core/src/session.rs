@@ -108,6 +108,11 @@ pub struct PersistedClosedTab {
     /// Real Unix close time, bounded to JavaScript's exact integer range.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub closed_at_ms: Option<u64>,
+    /// Where the tab stood among its space's open tabs, for putting it back.
+    /// Kept for this run only: a snapshot that names it could not be read
+    /// back by the release before, so a restart restores to the end.
+    #[serde(skip)]
+    pub position: Option<u32>,
 }
 
 pub fn snapshot(
@@ -215,6 +220,8 @@ fn collect(items: &Items, placement: Placement, out: &mut Vec<PersistedItem>) {
         let kind = match &item.kind {
             ItemKind::Folder { name } => PersistedKind::Folder { name: name.clone() },
             ItemKind::Tab(tab) => match tab.content {
+                // The document a source tab shows lives in memory only.
+                TabContent::BrowserOwned(BrowserOwnedTab::Source) => return,
                 TabContent::BrowserOwned(page) => PersistedKind::BrowserTab { page },
                 TabContent::ExtensionOwned => return,
                 TabContent::Web => match &tab.url {
@@ -357,7 +364,10 @@ pub fn restore(state: SessionState) -> Restored {
                 let Placement::Space { space, .. } = i.placement else {
                     continue;
                 };
-                if i.parent.is_some() || !browser_tabs.insert((space, page)) {
+                if page == BrowserOwnedTab::Source
+                    || i.parent.is_some()
+                    || !browser_tabs.insert((space, page))
+                {
                     continue;
                 }
                 ItemKind::Tab(TabState::browser_owned(page))
@@ -437,6 +447,9 @@ fn canonical_recently_closed(
                 },
                 session_id: entry.session_id,
                 closed_at_ms: entry.closed_at_ms,
+                position: entry
+                    .position
+                    .filter(|position| (*position as usize) < MAX_SESSION_ITEMS),
             })
         })
         .take(MAX_RECENTLY_CLOSED_TABS)
@@ -592,6 +605,7 @@ mod tests {
                 zoom: 2.0,
                 session_id: None,
                 closed_at_ms: None,
+                position: None,
             })
             .collect::<Vec<_>>();
         recent.push(PersistedClosedTab {
@@ -602,6 +616,7 @@ mod tests {
             zoom: 1.0,
             session_id: None,
             closed_at_ms: None,
+            position: None,
         });
         recent.push(PersistedClosedTab {
             profile,
@@ -611,6 +626,7 @@ mod tests {
             zoom: 1.0,
             session_id: None,
             closed_at_ms: None,
+            position: None,
         });
 
         let state = snapshot_with_recently_closed(
@@ -636,6 +652,46 @@ mod tests {
     }
 
     #[test]
+    fn a_closed_tabs_place_lasts_the_run_and_never_reaches_the_snapshot() {
+        let (profiles, spaces, items, profile, space) = seed();
+        let record = |position| PersistedClosedTab {
+            profile,
+            space,
+            url: "https://example.test/place".into(),
+            title: "Place".into(),
+            zoom: 1.0,
+            session_id: Some(ClosedSessionId::from(11)),
+            closed_at_ms: Some(1_700_000_000_000),
+            position,
+        };
+        let state = snapshot_with_recently_closed(
+            &profiles,
+            &spaces,
+            &items,
+            Some(space),
+            None,
+            None,
+            &[record(Some(3))],
+        );
+        assert_eq!(state.recently_closed[0].position, Some(3));
+        let written = serde_json::to_string(&state).unwrap();
+        assert!(!written.contains("position"));
+        let read: SessionState = serde_json::from_str(&written).unwrap();
+        assert_eq!(read.recently_closed, vec![record(None)]);
+
+        let wild = snapshot_with_recently_closed(
+            &profiles,
+            &spaces,
+            &items,
+            Some(space),
+            None,
+            None,
+            &[record(Some(u32::MAX))],
+        );
+        assert_eq!(wild.recently_closed[0].position, None);
+    }
+
+    #[test]
     fn closed_session_metadata_is_paired_unique_and_legacy_records_remain_reopenable() {
         let (profiles, spaces, items, profile, space) = seed();
         let record = |suffix: &str, session_id, closed_at_ms| PersistedClosedTab {
@@ -646,6 +702,7 @@ mod tests {
             zoom: 1.0,
             session_id,
             closed_at_ms,
+            position: None,
         };
         let same_id = ClosedSessionId::from(7);
         let state = snapshot_with_recently_closed(
@@ -748,6 +805,30 @@ mod tests {
             .items
             .navigate(extensions_tab, "https://example.test/")
             .is_empty());
+    }
+
+    #[test]
+    fn a_source_tab_is_never_saved_and_a_saved_one_is_not_restored() {
+        let (profiles, spaces, mut items, _profile, space) = seed();
+        let source = ItemId::from(41);
+        assert!(items.insert_source_tab(source, today(space), "view-source:example.com"));
+        assert!(!items.insert_browser_tab(ItemId::from(42), today(space), BrowserOwnedTab::Source));
+        assert_eq!(
+            items.tab(source).map(|tab| tab.title.as_str()),
+            Some("view-source:example.com")
+        );
+
+        let mut state = snapshot(&profiles, &spaces, &items, Some(space), Some(source), None);
+        assert!(state.items.iter().all(|item| item.id != source));
+        state.items.push(PersistedItem {
+            id: source,
+            parent: None,
+            placement: today(space),
+            kind: PersistedKind::BrowserTab {
+                page: BrowserOwnedTab::Source,
+            },
+        });
+        assert!(restore(state).items.tab(source).is_none());
     }
 
     #[test]

@@ -12,6 +12,8 @@
   <string>Zephium shares your location with a website only when you allow it.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Zephium turns what you dictate in Work into text on this Mac.</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Websites you open can reach devices on your network, such as your router, printer or a video call.</string>
   <key>NSDownloadsFolderUsageDescription</key>
   <string>Zephium saves the files you download to your Downloads folder.</string>
   <key>NSDesktopFolderUsageDescription</key>
