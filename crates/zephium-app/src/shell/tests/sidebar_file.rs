@@ -16,7 +16,9 @@ fn export(shell: &mut Shell) -> SidebarFile {
 
 fn import(shell: &mut Shell, file: SidebarFile) -> Option<u32> {
     let (send, receive) = std::sync::mpsc::channel();
+    let destination = shell.import_destination().unwrap();
     shell.handle(Command::Import {
+        destination,
         work: Box::new(crate::ImportWork::Sidebar(file)),
         done: crate::ImportCompletion::new(move |added| {
             let _ = send.send(added);

@@ -146,7 +146,7 @@ impl Shell {
         };
         let placement = if essential {
             Placement::Favorites {
-                profile: window.profile,
+                space: window.space,
             }
         } else {
             Placement::Space {
@@ -344,23 +344,20 @@ impl Shell {
         mutation_result(native)
     }
 
-    /// Unloads the focused space's tabs and the profile's Essentials, as a
-    /// profile switch does, keeping each where it is. What is on screen stays
-    /// loaded, and a page already being discarded is left to finish.
+    /// Unloads the focused space's tabs and Essentials, as a profile switch
+    /// does, keeping each where it is. What is on screen stays loaded, and a
+    /// page already being discarded is left to finish.
     pub(super) fn operation_suspend_space(&mut self) -> OperationDisposition {
-        let Some((profile, space)) = self
-            .windows
-            .focused()
-            .map(|window| (window.profile, window.space))
-        else {
+        let Some(space) = self.windows.focused().map(|window| window.space) else {
             return operation_result(OperationOutcome::Rejected, OperationReason::NoFocusedWindow);
         };
         let shown = self.discard_protected_leaves();
         let mut effects = Vec::new();
         for id in self.items.view_ids() {
             let here = self.items.get(id).is_some_and(|item| match item.placement {
-                Placement::Favorites { profile: owner } => owner == profile,
-                Placement::Space { space: owner, .. } => owner == space,
+                Placement::Favorites { space: owner } | Placement::Space { space: owner, .. } => {
+                    owner == space
+                }
             });
             if here && !shown.contains(&id) && !self.residency.discard_probes.contains_key(&id) {
                 effects.extend(self.items.hibernate(id));
@@ -1248,7 +1245,7 @@ impl Shell {
         let Some(active) = win.active else {
             return operation_result(OperationOutcome::NoOp, OperationReason::NoFocusedWindow);
         };
-        let tabs = self.keyboard_tabs(win.profile, win.space);
+        let tabs = self.keyboard_tabs(win.space);
         let Some(position) = tabs.iter().position(|id| *id == active) else {
             return operation_result(OperationOutcome::Rejected, OperationReason::InvalidScope);
         };
@@ -1265,7 +1262,7 @@ impl Shell {
         let Some(win) = self.windows.focused() else {
             return operation_result(OperationOutcome::NoOp, OperationReason::NoFocusedWindow);
         };
-        let tabs = self.keyboard_tabs(win.profile, win.space);
+        let tabs = self.keyboard_tabs(win.space);
         let target = match position {
             Some(position) => position.checked_sub(1).and_then(|index| tabs.get(index)),
             None => tabs.last(),

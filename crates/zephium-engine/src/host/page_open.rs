@@ -10,6 +10,11 @@ use zephium_core::geometry::Rect;
 use zephium_core::ids::ItemId;
 use zephium_core::ports::engine::EngineEvent;
 
+#[cfg(target_os = "windows")]
+mod windows_save;
+#[cfg(target_os = "windows")]
+pub(super) use windows_save::ResourceSave;
+
 impl EngineHost {
     #[cfg(target_os = "windows")]
     pub(super) fn finish_windows_native_tab(&mut self, id: ItemId, attached: bool) {
@@ -260,6 +265,23 @@ impl EngineHost {
 }
 
 #[cfg(target_os = "windows")]
+pub(super) fn windows_context_foreground(
+    permit: &EventPermit,
+    presented: &std::sync::Arc<std::sync::atomic::AtomicBool>,
+    controller: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Controller,
+) -> bool {
+    use windows::Win32::{
+        Foundation::HWND,
+        UI::WindowsAndMessaging::{GetAncestor, GetForegroundWindow, GA_ROOT},
+    };
+    let mut parent = HWND::default();
+    permit.active_token().is_some()
+        && presented.load(Ordering::Acquire)
+        && unsafe { controller.ParentWindow(&mut parent) }.is_ok()
+        && unsafe { GetAncestor(parent, GA_ROOT) == GetForegroundWindow() }
+}
+
+#[cfg(target_os = "windows")]
 pub(super) fn filter_windows_context_menu(
     permit: &EventPermit,
     navigation: &crate::navigation_epoch::NavigationEpochTracker,
@@ -267,23 +289,11 @@ pub(super) fn filter_windows_context_menu(
     controller: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Controller,
     args:&webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2ContextMenuRequestedEventArgs,
 ) -> bool {
-    use windows::{
-        core::PWSTR,
-        Win32::{
-            Foundation::HWND,
-            System::Com::CoTaskMemFree,
-            UI::WindowsAndMessaging::{GetAncestor, GetForegroundWindow, GA_ROOT},
-        },
-    };
+    use windows::{core::PWSTR, Win32::System::Com::CoTaskMemFree};
     let Some(activity) = navigation.activity_snapshot() else {
         return false;
     };
-    let mut parent = HWND::default();
-    if permit.active_token().is_none()
-        || !presented.load(Ordering::Acquire)
-        || unsafe { controller.ParentWindow(&mut parent) }.is_err()
-        || unsafe { GetAncestor(parent, GA_ROOT) != GetForegroundWindow() }
-    {
+    if !windows_context_foreground(permit, presented, controller) {
         return false;
     }
     let Ok(items) = (unsafe { args.MenuItems() }) else {
@@ -320,10 +330,8 @@ pub(super) fn filter_windows_context_menu(
     }
     // The page's own items stay even if Scroll to Top cannot join them.
     let _ = add_windows_scroll_to_top(controller, &items);
-    permit.active_token().is_some()
-        && navigation.matches_activity(activity)
-        && presented.load(Ordering::Acquire)
-        && unsafe { GetAncestor(parent, GA_ROOT) == GetForegroundWindow() }
+    navigation.matches_activity(activity)
+        && windows_context_foreground(permit, presented, controller)
 }
 /// Adds Scroll to Top after the menu's Reload, or at the end of a menu that
 /// has none (one opened on a link, an image or selected text).

@@ -5,11 +5,15 @@ use zephium_core::session::bounded_name;
 use zephium_core::sidebar_file::{SidebarFile, SidebarNode, SidebarSpace};
 
 impl Shell {
-    /// The focused profile's Essentials, then each space's pinned tabs, in
+    /// The focused space's Essentials, then each space's pinned tabs, in
     /// sidebar order, each at the page it was kept at. Only ordinary web
     /// pages are written.
     pub(super) fn export_sidebar(&self) -> Option<SidebarFile> {
-        let profile = self.windows.focused()?.profile;
+        let window = self.windows.focused()?;
+        let profile = window.profile;
+        let essentials = Placement::Favorites {
+            space: window.space,
+        };
         let spaces = self
             .spaces
             .of(profile)
@@ -24,7 +28,7 @@ impl Shell {
                 })
             })
             .collect();
-        let essentials = self.sidebar_nodes(self.items.roots(Placement::Favorites { profile }));
+        let essentials = self.sidebar_nodes(self.items.roots(essentials));
         Some(SidebarFile::new(essentials, spaces))
     }
 
@@ -48,12 +52,18 @@ impl Shell {
             .collect()
     }
 
-    /// Adds what the file holds and the sidebar does not: Essentials and each
+    /// Adds what the file holds and the sidebar does not: Essentials, into
+    /// `space`, and each
     /// space's pinned tabs by address, folders by name. Spaces are matched by
     /// name and made when missing. Tabs wait unloaded until opened. Returns
     /// how many tabs were added.
-    pub(super) fn merge_sidebar_file(&mut self, profile: ProfileId, file: SidebarFile) -> u32 {
-        let favorites = Placement::Favorites { profile };
+    pub(super) fn merge_sidebar_file(
+        &mut self,
+        profile: ProfileId,
+        space: SpaceId,
+        file: SidebarFile,
+    ) -> u32 {
+        let favorites = Placement::Favorites { space };
         let mut added = self.merge_sidebar_nodes(favorites, None, file.essentials);
         for incoming in file.spaces {
             let name =
