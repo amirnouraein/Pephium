@@ -119,7 +119,12 @@
           <DropdownMenu.Item
             class="ui-menu-item tab"
             textValue={tab.title || tab.url || ""}
-            onSelect={() => (attached ? session.detachTab(tab.id) : session.attachTab(tab.id))}
+            onSelect={(event) => {
+              // Stays open so several tabs can be attached in one visit.
+              event.preventDefault();
+              if (attached) session.detachTab(tab.id);
+              else session.attachTab(tab.id);
+            }}
           >
             <span class="ui-menu-icon" aria-hidden="true"
               ><FavIcon

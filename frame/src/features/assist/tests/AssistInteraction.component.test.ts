@@ -197,6 +197,7 @@ test("+ attaches another tab of the Space alongside the page in front", async ()
       tab(TAB, "https://news.ycombinator.com/", "Hacker News"),
       tab("tab-2", "https://github.com/zephium", "Zephium · GitHub"),
       tab("tab-3", "about:blank", ""),
+      tab("tab-4", "https://example.com/", "Example"),
     ],
   });
   const { screen, field } = await open(status());
@@ -205,8 +206,12 @@ test("+ attaches another tab of the Space alongside the page in front", async ()
   await expect
     .element(page.getByRole("menuitem", { name: /about:blank/u }))
     .not.toBeInTheDocument();
+  // The menu stays open, so several tabs go in one visit.
   await page.getByRole("menuitem", { name: /Zephium · GitHub/u }).click();
+  await page.getByRole("menuitem", { name: /Example/u }).click();
   await expect.element(screen.getByRole("button", { name: "Remove github.com" })).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Remove example.com" })).toBeVisible();
+  await userEvent.keyboard("{Escape}");
   await field.fill("Compare these");
   await userEvent.keyboard("{Enter}");
   await expect.poll(() => native.ask.mock.calls.length).toBe(1);
@@ -215,6 +220,7 @@ test("+ attaches another tab of the Space alongside the page in front", async ()
       attachments: [
         { kind: "page", tab: TAB },
         { kind: "page", tab: "tab-2" },
+        { kind: "page", tab: "tab-4" },
       ],
     }),
   );
