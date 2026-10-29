@@ -259,11 +259,21 @@ impl Reply {
 
     async fn read_tab(&self, tab: &str) -> Result<usize, PageAssistFaultV1> {
         let ports = self.service.ports();
-        let facts = ports
-            .page
-            .facts(tab)
-            .filter(|facts| facts.profile == self.profile)
-            .ok_or(PageAssistFaultV1::Unavailable)?;
+        let facts_now = || {
+            ports
+                .page
+                .facts(tab)
+                .filter(|facts| facts.profile == self.profile)
+                .ok_or(PageAssistFaultV1::Unavailable)
+        };
+        let mut facts = facts_now()?;
+        // A tab opened in the background has no page until it is shown.
+        // ponytail: woken and awaited one at a time; wake every attached tab
+        // up front if several cold tabs make the first reply slow.
+        if facts.sleeping && ports.tabs.wake(&self.profile, tab) {
+            settled(ports, tab).await;
+            facts = facts_now()?;
+        }
         if let Some(fault) =
             zephium_page_assist::policy::refusal(self.service.availability(Some(&facts)).await)
         {
@@ -944,7 +954,7 @@ async fn settled(ports: &super::Ports, tab: &str) {
     let started = tokio::time::Instant::now();
     while started.elapsed() < OPEN_TIMEOUT {
         match ports.page.facts(tab) {
-            Some(facts) if !facts.loading => break,
+            Some(facts) if !facts.loading && !facts.sleeping => break,
             None if started.elapsed() > UNLISTED_TIMEOUT => break,
             _ => tokio::time::sleep(Duration::from_millis(150)).await,
         }
