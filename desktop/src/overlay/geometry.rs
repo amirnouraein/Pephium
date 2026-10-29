@@ -1,6 +1,6 @@
 //! The launcher has one width and a height that follows its content. It is
 //! not resizable or draggable, so there is no geometry to persist: it opens
-//! at the same place on whichever display the user is working on.
+//! over the browser window in use, else on the display the user is working on.
 pub const WIDTH: f64 = 680.0;
 /// Room around natively drawn shapes for their shadow. Liquid Glass casts a
 /// wide, soft one; any less and the window's edge cuts it off in a visible
@@ -31,18 +31,33 @@ pub struct Placement {
 impl Placement {
     /// `work_width`/`work_height` are the display's usable area in logical
     /// points; the returned origin is relative to that area.
+    #[cfg(test)]
     pub fn new(work_width: f64, work_height: f64, inset: f64) -> Self {
+        Self::over(
+            work_width,
+            work_height,
+            inset,
+            [0.0, 0.0, work_width, work_height],
+        )
+    }
+
+    /// Centred over `window` (`[x, y, width, height]` relative to the work
+    /// area, y downward) instead of the whole area, and kept inside the area.
+    pub fn over(work_width: f64, work_height: f64, inset: f64, window: [f64; 4]) -> Self {
+        let [left, top, window_width, window_height] = window;
         let width = (WIDTH + 2.0 * inset)
             .min(work_width - 2.0 * MARGIN)
             .max(1.0);
         let max_height = MAX_HEIGHT.min(work_height - 2.0 * MARGIN).max(1.0);
         // Keep the top edge fixed for every height the launcher can reach, so
         // it never moves upward on a short display.
-        let y = (work_height * TOP)
+        let y = (top + window_height * TOP)
             .min(work_height - max_height - MARGIN)
             .max(MARGIN.min(work_height - max_height).max(0.0));
         Self {
-            x: ((work_width - width) / 2.0).max(0.0),
+            x: (left + (window_width - width) / 2.0)
+                .min(work_width - width)
+                .max(0.0),
             y,
             width,
             max_height,
@@ -73,6 +88,17 @@ mod tests {
         let placement = Placement::new(1024.0, 600.0, SHAPE_INSET);
         assert!(placement.y >= MARGIN);
         assert!(placement.y + placement.height(9000.0) <= 600.0 - MARGIN);
+    }
+
+    #[test]
+    fn opens_centred_over_a_window_and_stays_on_its_display() {
+        let window = [700.0, 100.0, 600.0, 500.0];
+        let placement = Placement::over(1440.0, 875.0, 0.0, window);
+        assert_eq!(placement.x, 700.0 + (600.0 - WIDTH) / 2.0);
+        assert_eq!(placement.y, 100.0 + 500.0 * TOP);
+        // A window hanging off the display's right edge keeps the launcher on it.
+        let placement = Placement::over(1440.0, 875.0, 0.0, [1200.0, 0.0, 800.0, 600.0]);
+        assert_eq!(placement.x, 1440.0 - WIDTH);
     }
 
     #[test]
