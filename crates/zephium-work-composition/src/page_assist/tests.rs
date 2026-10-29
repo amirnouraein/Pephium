@@ -1116,6 +1116,24 @@ async fn a_tab_opened_in_the_background_is_woken_and_read() {
 }
 
 #[tokio::test]
+async fn an_unreadable_attached_page_is_named_by_its_handle() {
+    let h = harness(vec![say("It is still loading.")]);
+    h.page.lock().readouts.remove(TAB);
+    h.ask("Can you read this page?", true).await.unwrap();
+    h.settle().await;
+    assert!(h
+        .request_text(0)
+        .contains("(The attached page t1 · news.ycombinator.com could not be read just now.)"));
+    assert!(h
+        .notes
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|line| line.contains("read failed fault=Unreadable")));
+}
+
+#[tokio::test]
 async fn stop_drops_the_call_and_cancels_the_reply() {
     let h = harness(vec![Turn {
         deltas: vec!["Thinking".into()],

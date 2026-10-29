@@ -23,7 +23,7 @@ use zephium_page_assist::{css, guard, prompt, suggest, text};
 
 use super::port::{
     BringRequest, Glow, ReadFailure, ResolvedModel, Role, StepEffect, StepFailure, StepRequest,
-    WorkStart,
+    TabFacts, WorkStart,
 };
 use super::tools::{self, Call, ItemCall};
 use super::{
@@ -258,6 +258,24 @@ impl Reply {
     // ----------------------------------------------------------------- reads
 
     async fn read_tab(&self, tab: &str) -> Result<usize, PageAssistFaultV1> {
+        let before = self.service.ports().page.facts(tab);
+        let started = self.now();
+        let result = self.read_tab_once(tab).await;
+        if let Err(fault) = result {
+            // Says why a tab could not be read, never what it holds.
+            let after = self.service.ports().page.facts(tab);
+            let flags = |facts: &Option<TabFacts>| facts.as_ref().map(|f| (f.sleeping, f.loading));
+            self.note(format_args!(
+                "read failed fault={fault:?} before(sleeping,loading)={:?} after={:?} ms={}",
+                flags(&before),
+                flags(&after),
+                self.now().saturating_sub(started)
+            ));
+        }
+        result
+    }
+
+    async fn read_tab_once(&self, tab: &str) -> Result<usize, PageAssistFaultV1> {
         let ports = self.service.ports();
         let facts_now = || {
             ports
@@ -310,6 +328,10 @@ impl Reply {
             &zephium_agentic::contains_recognized_secret,
         );
         if page.fragments.is_empty() {
+            self.note(format_args!(
+                "read empty passages={}",
+                readout.passages.len()
+            ));
             return Err(PageAssistFaultV1::Unreadable);
         }
         let traits = page.traits;
@@ -403,7 +425,11 @@ impl Reply {
                             .and_then(|facts| facts.url)
                             .map(|url| host_of(&url))
                             .unwrap_or_default();
-                        parts.push(format!("(The page {host} could not be read just now.)"));
+                        // The handle says which tab it is when several share a site.
+                        parts.push(format!(
+                            "(The attached page {} · {host} could not be read just now.)",
+                            self.handle(tab)
+                        ));
                     }
                 },
                 Admitted::Selection { tab, text } => {
