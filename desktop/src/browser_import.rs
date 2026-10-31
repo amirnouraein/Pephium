@@ -187,29 +187,7 @@ pub(crate) async fn import_start(
         .into_iter()
         .filter(|kind| kinds.contains(kind))
         .collect();
-    let Some(shell) = app.try_state::<Handle>().map(|shell| shell.inner().clone()) else {
-        *jobs
-            .running
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
-        return false;
-    };
-    let (send, receive) = tokio::sync::oneshot::channel();
-    let admitted = shell.dispatch(Command::ImportDestination {
-        done: zephium_app::ImportDestinationCompletion::new(move |destination| {
-            let _ = send.send(destination);
-        }),
-    });
-    let destination = if admitted {
-        tokio::time::timeout(WRITE_DEADLINE, receive)
-            .await
-            .ok()
-            .and_then(Result::ok)
-            .flatten()
-    } else {
-        None
-    };
-    let Some(destination) = destination else {
+    let Some(destination) = destination(&app).await else {
         *jobs
             .running
             .lock()
@@ -227,6 +205,25 @@ pub(crate) async fn import_start(
         }
     });
     true
+}
+
+/// Where an import lands: the focused window's profile and space.
+async fn destination(app: &tauri::AppHandle) -> Option<zephium_app::ImportDestination> {
+    let shell = app.try_state::<Handle>()?.inner().clone();
+    let (send, receive) = tokio::sync::oneshot::channel();
+    let admitted = shell.dispatch(Command::ImportDestination {
+        done: zephium_app::ImportDestinationCompletion::new(move |destination| {
+            let _ = send.send(destination);
+        }),
+    });
+    if !admitted {
+        return None;
+    }
+    tokio::time::timeout(WRITE_DEADLINE, receive)
+        .await
+        .ok()
+        .and_then(Result::ok)
+        .flatten()
 }
 
 #[tauri::command]
@@ -380,7 +377,7 @@ impl ImportedOrigins {
                     }
                 }
             }
-            zephium_app::ImportWork::Icons(_) => {}
+            zephium_app::ImportWork::Icons(_) | zephium_app::ImportWork::Sidebar(_) => {}
         }
     }
 
@@ -519,6 +516,170 @@ async fn write(
         .ok()?
         .ok()
         .flatten()
+}
+
+/// Why moving Essentials and pinned tabs through a file did not happen.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum SidebarFileProblemView {
+    TooLarge,
+    NotSidebarFile,
+    NewerVersion,
+    TooMany,
+    Invalid,
+    /// The file could not be read or written.
+    Unreadable,
+    /// No window to take it, or a profile that keeps nothing.
+    Unavailable,
+}
+
+impl From<zephium_core::sidebar_file::SidebarFileError> for SidebarFileProblemView {
+    fn from(error: zephium_core::sidebar_file::SidebarFileError) -> Self {
+        use zephium_core::sidebar_file::SidebarFileError as E;
+        match error {
+            E::TooLarge => Self::TooLarge,
+            E::NotSidebarFile => Self::NotSidebarFile,
+            E::NewerVersion => Self::NewerVersion,
+            E::TooMany => Self::TooMany,
+            E::Invalid => Self::Invalid,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub(crate) enum SidebarFileReplyView {
+    /// Tabs written, or tabs an import added.
+    Done {
+        tabs: u32,
+    },
+    Cancelled,
+    Failed {
+        problem: SidebarFileProblemView,
+    },
+}
+
+fn sidebar_tabs(nodes: &[zephium_core::sidebar_file::SidebarNode]) -> u32 {
+    use zephium_core::sidebar_file::SidebarNode;
+    nodes
+        .iter()
+        .map(|node| match node {
+            SidebarNode::Tab { .. } => 1,
+            SidebarNode::Folder { children, .. } => sidebar_tabs(children),
+        })
+        .fold(0u32, u32::saturating_add)
+}
+
+/// Reads at most one byte past the cap, so an oversized file is refused
+/// without being held whole.
+fn read_sidebar_file(
+    path: &std::path::Path,
+) -> Result<zephium_core::sidebar_file::SidebarFile, SidebarFileProblemView> {
+    use std::io::Read;
+    use zephium_core::sidebar_file::{SidebarFile, MAX_FILE_BYTES};
+    let file = std::fs::File::open(path).map_err(|_| SidebarFileProblemView::Unreadable)?;
+    let mut bytes = Vec::new();
+    file.take(MAX_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| SidebarFileProblemView::Unreadable)?;
+    SidebarFile::parse(&bytes).map_err(Into::into)
+}
+
+/// Saves the focused profile's Essentials and pinned tabs where the person
+/// chooses. Chrome never sees the file or its path.
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn sidebar_export(
+    caller: WebviewWindow,
+    app: tauri::AppHandle,
+) -> SidebarFileReplyView {
+    use tauri_plugin_dialog::DialogExt;
+    let failed = |problem| SidebarFileReplyView::Failed { problem };
+    if !authorize(&caller, CallerPolicy::Main, "sidebar_export") || shutdown_started(&app) {
+        return failed(SidebarFileProblemView::Unavailable);
+    }
+    let Some(shell) = app.try_state::<Handle>().map(|shell| shell.inner().clone()) else {
+        return failed(SidebarFileProblemView::Unavailable);
+    };
+    let (reply, receive) = std::sync::mpsc::sync_channel(1);
+    if !shell.dispatch(Command::ExportSidebar { reply }) {
+        return failed(SidebarFileProblemView::Unavailable);
+    }
+    let Some(file) = tokio::task::spawn_blocking(move || {
+        receive.recv_timeout(std::time::Duration::from_secs(10))
+    })
+    .await
+    .ok()
+    .and_then(Result::ok)
+    .flatten() else {
+        return failed(SidebarFileProblemView::Unavailable);
+    };
+    let tabs = file
+        .spaces
+        .iter()
+        .map(|space| sidebar_tabs(&space.pinned))
+        .fold(sidebar_tabs(&file.essentials), u32::saturating_add);
+    let Ok(bytes) = serde_json::to_vec_pretty(&file) else {
+        return failed(SidebarFileProblemView::Unavailable);
+    };
+    let picked = tokio::task::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_file_name("Zephium sidebar.json")
+            .add_filter("JSON", &["json"])
+            .blocking_save_file()
+    })
+    .await
+    .ok()
+    .flatten();
+    let Some(path) = picked.and_then(|picked| picked.into_path().ok()) else {
+        return SidebarFileReplyView::Cancelled;
+    };
+    match tokio::task::spawn_blocking(move || std::fs::write(path, bytes)).await {
+        Ok(Ok(())) => SidebarFileReplyView::Done { tabs },
+        _ => failed(SidebarFileProblemView::Unreadable),
+    }
+}
+
+/// Merges a file `sidebar_export` wrote into the focused profile: nothing
+/// already there is repeated or replaced, and new tabs wait unloaded.
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn sidebar_import(
+    caller: WebviewWindow,
+    app: tauri::AppHandle,
+) -> SidebarFileReplyView {
+    use tauri_plugin_dialog::DialogExt;
+    let failed = |problem| SidebarFileReplyView::Failed { problem };
+    if !authorize(&caller, CallerPolicy::Main, "sidebar_import") || shutdown_started(&app) {
+        return failed(SidebarFileProblemView::Unavailable);
+    }
+    let dialog = app.clone();
+    let picked = tokio::task::spawn_blocking(move || {
+        dialog
+            .dialog()
+            .file()
+            .add_filter("JSON", &["json"])
+            .blocking_pick_file()
+    })
+    .await
+    .ok()
+    .flatten();
+    let Some(path) = picked.and_then(|picked| picked.into_path().ok()) else {
+        return SidebarFileReplyView::Cancelled;
+    };
+    let file = match tokio::task::spawn_blocking(move || read_sidebar_file(&path)).await {
+        Ok(Ok(file)) => file,
+        Ok(Err(problem)) => return failed(problem),
+        Err(_) => return failed(SidebarFileProblemView::Unreadable),
+    };
+    let Some(destination) = destination(&app).await else {
+        return failed(SidebarFileProblemView::Unavailable);
+    };
+    match write(&app, destination, zephium_app::ImportWork::Sidebar(file)).await {
+        Some(tabs) => SidebarFileReplyView::Done { tabs },
+        None => failed(SidebarFileProblemView::Unavailable),
+    }
 }
 
 fn publish(app: &tauri::AppHandle, job: &ImportJobView) {

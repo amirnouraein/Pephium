@@ -188,6 +188,15 @@
           size={16}
           disabled={active === undefined}
           onclick={tabs.reloadActive}
+          onmousedown={(event) => {
+            // A middle press starts autoscroll in Chromium (WebView2).
+            if (event.button === 1) event.preventDefault();
+          }}
+          onauxclick={(event) => {
+            if (event.button !== 1 || active === undefined) return;
+            event.preventDefault();
+            tabs.duplicate(active.id);
+          }}
         />
       </div>{/if}
 

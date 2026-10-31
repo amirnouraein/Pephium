@@ -256,6 +256,20 @@ export const commands = {
 	tabsActivate: (id: string) => __TAURI_INVOKE<OperationAdmission>("tabs_activate", { id }),
 	tabsClose: (id: string) => __TAURI_INVOKE<OperationAdmission>("tabs_close", { id }),
 	tabsSetEssential: (id: string, essential: boolean, before: string | null) => __TAURI_INVOKE<OperationAdmission>("tabs_set_essential", { id, essential, before }),
+	tabsSetPinned: (id: string, pinned: boolean, before: string | null) => __TAURI_INVOKE<OperationAdmission>("tabs_set_pinned", { id, pinned, before }),
+	/**  Opens the same page in a new tab right after it, as the tab menu does. */
+	tabsDuplicate: (id: string) => __TAURI_INVOKE<OperationAdmission>("tabs_duplicate", { id }),
+	/**  Takes an Essential or pinned tab back to the page it was kept at. */
+	tabsReturnHome: (id: string) => __TAURI_INVOKE<OperationAdmission>("tabs_return_home", { id }),
+	/**
+	 *  Shows `name` in place of the tab's page title; an empty one gives the page
+	 *  title back.
+	 */
+	tabsRename: (id: string, name: string) => __TAURI_INVOKE<OperationAdmission>("tabs_rename", { id, name }),
+	/**  Closes the focused space's open tabs; pinned tabs and Essentials stay. */
+	spaceClear: () => __TAURI_INVOKE<OperationAdmission>("space_clear"),
+	/**  Unloads the focused space's tabs and Essentials but those on screen. */
+	spaceSuspend: () => __TAURI_INVOKE<OperationAdmission>("space_suspend"),
 	/**
 	 *  Onboarding keeps a site by its catalog id; native owns the address and
 	 *  the mark, so chrome can never pin an arbitrary URL through this path.
@@ -653,6 +667,16 @@ export const commands = {
 	importCancel: () => __TAURI_INVOKE<boolean>("import_cancel"),
 	/**  Opens the system setting a source needs (Safari: Full Disk Access). */
 	importOpenPermission: (source: string) => __TAURI_INVOKE<boolean>("import_open_permission", { source }),
+	/**
+	 *  Saves the focused profile's Essentials and pinned tabs where the person
+	 *  chooses. Chrome never sees the file or its path.
+	 */
+	sidebarExport: () => __TAURI_INVOKE<SidebarFileReplyView>("sidebar_export"),
+	/**
+	 *  Merges a file `sidebar_export` wrote into the focused profile: nothing
+	 *  already there is repeated or replaced, and new tabs wait unloaded.
+	 */
+	sidebarImport: () => __TAURI_INVOKE<SidebarFileReplyView>("sidebar_import"),
 	exportBrowserData: (kind: ExportKindView) => __TAURI_INVOKE<ExportOutcomeView>("export_browser_data", { kind }),
 	historyMenuPopup: (id: string, forward: boolean, x: number | null, y: number | null) => __TAURI_INVOKE<boolean>("history_menu_popup", { id, forward, x, y }),
 	pageSource: (id: string) => __TAURI_INVOKE<{
@@ -2994,6 +3018,17 @@ export type ShutSiteView = {
 	icon: IconRef | null,
 };
 
+/**  Why moving Essentials and pinned tabs through a file did not happen. */
+export type SidebarFileProblemView = "too_large" | "not_sidebar_file" | "newer_version" | "too_many" | "invalid" |
+/**  The file could not be read or written. */
+"unreadable" |
+/**  No window to take it, or a profile that keeps nothing. */
+"unavailable";
+
+export type SidebarFileReplyView =
+/**  Tabs written, or tabs an import added. */
+{ outcome: "done"; tabs: number } | { outcome: "cancelled" } | { outcome: "failed"; problem: SidebarFileProblemView };
+
 /**
  *  One extension's button, carried into the rail's menu. The frame holds the
  *  action and its popup; native only draws the row and relays the choice.
@@ -3203,6 +3238,8 @@ export type TabMenuContext = {
 	page: boolean,
 	can_split: boolean,
 	essential: boolean,
+	/**  The tab sits among the space's pinned tabs, in a folder or not. */
+	pinned: boolean,
 	/**  Other open tabs exist to close. */
 	others: boolean,
 	/**  Open tabs follow this one. */

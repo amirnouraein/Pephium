@@ -1019,6 +1019,136 @@ fn essential_move_survives_session_restore() {
 }
 
 #[test]
+fn pin_move_keeps_the_native_tab_orders_by_drop_target_and_can_be_reversed() {
+    let (mut shell, engine, screen) = setup();
+    shell.handle(Command::Bootstrap);
+    let first = active_id(&screen);
+    navigate_and_commit(&mut shell, first, "first-pinned.example");
+    shell.handle_operation(Command::Open);
+    let second = active_id(&screen);
+    assert_ne!(second, first);
+    navigate_and_commit(&mut shell, second, "second-pinned.example");
+    let space = shell.windows.focused().unwrap().space;
+    let pinned = Placement::Space {
+        space,
+        section: SpaceSection::Pinned,
+    };
+    let before = engine.calls().len();
+    let result = shell.handle_operation(Command::SetTabPinned {
+        id: first,
+        pinned: true,
+        before: None,
+    });
+    assert!(matches!(
+        result.outcome,
+        OperationOutcome::Applied | OperationOutcome::Deferred
+    ));
+    assert_eq!(shell.items.get(first).unwrap().placement, pinned);
+    // A drop onto the pinned row goes before it.
+    shell.handle_operation(Command::SetTabPinned {
+        id: second,
+        pinned: true,
+        before: Some(first),
+    });
+    assert_eq!(shell.items.roots(pinned), [second, first]);
+    assert!(shell.items.tab(first).unwrap().has_view());
+    assert_eq!(active_id(&screen), second);
+    assert!(!engine.calls()[before..]
+        .iter()
+        .any(|call| call.starts_with("close ") || call.starts_with("create ")));
+    shell.handle_operation(Command::SetTabPinned {
+        id: first,
+        pinned: false,
+        before: None,
+    });
+    assert_eq!(
+        shell.items.get(first).unwrap().placement,
+        Placement::Space {
+            space,
+            section: SpaceSection::Today,
+        }
+    );
+    assert_eq!(shell.items.roots(pinned), [second]);
+}
+
+#[test]
+fn pin_move_rejects_foreign_and_invalid_drop_targets() {
+    let (mut shell, _, screen) = setup();
+    shell.handle(Command::Bootstrap);
+    let id = active_id(&screen);
+    let placement = shell.items.get(id).unwrap().placement;
+    let denied = shell.handle_operation(Command::SetTabPinned {
+        id,
+        pinned: true,
+        before: Some(ItemId::from(u128::MAX)),
+    });
+    assert_eq!(denied.outcome, OperationOutcome::Rejected);
+    assert_eq!(shell.items.get(id).unwrap().placement, placement);
+    let denied = shell.handle_operation(Command::SetTabPinned {
+        id: ItemId::from(u128::MAX),
+        pinned: true,
+        before: None,
+    });
+    assert_eq!(denied.outcome, OperationOutcome::Rejected);
+    add_inactive_named_profile(&mut shell, 900);
+    let foreign_space = SpaceId::from(901_u128);
+    let foreign_tab = ItemId::from(902_u128);
+    assert!(shell.items.insert_tab(
+        foreign_tab,
+        Placement::Favorites {
+            space: foreign_space
+        }
+    ));
+    let denied = shell.handle_operation(Command::SetTabPinned {
+        id: foreign_tab,
+        pinned: true,
+        before: None,
+    });
+    assert_eq!(denied.reason, OperationReason::InvalidScope);
+    assert_eq!(
+        shell.items.get(foreign_tab).unwrap().placement,
+        Placement::Favorites {
+            space: foreign_space
+        }
+    );
+}
+
+#[test]
+fn pin_move_survives_session_restore() {
+    let store = Arc::new(FakeStore::default());
+    let (mut shell, _, screen) = setup_with(store.clone());
+    shell.handle(Command::Bootstrap);
+    let id = active_id(&screen);
+    navigate_and_commit(&mut shell, id, "saved-pinned.example");
+    let space = shell.windows.focused().unwrap().space;
+    shell.handle_operation(Command::SetTabPinned {
+        id,
+        pinned: true,
+        before: None,
+    });
+    shell.persist();
+    let (mut restored, _, _) = setup_with(store);
+    restored.handle(Command::Bootstrap);
+    assert_eq!(
+        restored.items.get(id).unwrap().placement,
+        Placement::Space {
+            space,
+            section: SpaceSection::Pinned,
+        }
+    );
+    assert_eq!(
+        restored
+            .items
+            .tab(id)
+            .unwrap()
+            .url
+            .as_ref()
+            .map(url::Url::as_str),
+        Some("https://saved-pinned.example/")
+    );
+}
+
+#[test]
 fn scoped_launcher_actions_reject_stale_requests_and_unoffered_actions() {
     let (mut shell, _, screen) = setup();
     shell.handle(Command::Bootstrap);
@@ -1369,6 +1499,8 @@ fn keyboard_selection_walks_the_sidebar_from_favorites_through_pinned_folders() 
         title: host.into(),
         zoom: 1.0,
         last_active_ms: None,
+        home: None,
+        name: None,
     };
     let pinned = Placement::Space {
         space,
@@ -2002,4 +2134,254 @@ fn links_from_other_apps_follow_new_tabs_unless_placed_on_their_own() {
     shell.handle(Command::Activate(first));
     shell.handle(Command::OpenExternal(vec!["https://next.example/".into()]));
     assert!(follows(&screen, active_id(&screen)));
+}
+
+#[test]
+fn clearing_a_space_closes_its_open_tabs_and_keeps_pinned_and_essentials() {
+    let (mut shell, _engine, screen) = setup();
+    shell.handle(Command::Bootstrap);
+    let kept = active_id(&screen);
+    navigate_and_commit(&mut shell, kept, "mail.example");
+    shell.handle(Command::SetTabEssential {
+        id: kept,
+        essential: true,
+        before: None,
+    });
+    shell.handle(Command::Run("tab.new".into()));
+    let pinned = active_id(&screen);
+    navigate_and_commit(&mut shell, pinned, "board.example");
+    shell.handle(Command::SetTabPinned {
+        id: pinned,
+        pinned: true,
+        before: None,
+    });
+    shell.handle(Command::Run("tab.new".into()));
+    let second = active_id(&screen);
+    navigate_and_commit(&mut shell, second, "news.example");
+    shell.handle(Command::Run("tab.new".into()));
+    let third = active_id(&screen);
+    shell.handle(Command::Activate(second));
+
+    let cleared = shell.handle_operation(Command::ClearSpace);
+    assert_ne!(cleared.outcome, OperationOutcome::Rejected);
+    for closed in [second, third] {
+        assert!(shell.items.get(closed).is_none());
+    }
+    for stays in [kept, pinned] {
+        assert!(shell.items.tab(stays).is_some());
+    }
+    let space = shell.windows.focused().unwrap().space;
+    assert!(shell
+        .today_tabs(space)
+        .iter()
+        .all(|id| ![second, third].contains(id)));
+}
+
+#[test]
+fn suspending_a_space_unloads_its_tabs_but_the_one_in_front() {
+    let (mut shell, _engine, screen) = setup();
+    shell.handle(Command::Bootstrap);
+    let essential = active_id(&screen);
+    navigate_and_commit(&mut shell, essential, "mail.example");
+    shell.handle(Command::SetTabEssential {
+        id: essential,
+        essential: true,
+        before: None,
+    });
+    shell.handle(Command::Run("tab.new".into()));
+    let pinned = active_id(&screen);
+    navigate_and_commit(&mut shell, pinned, "board.example");
+    shell.handle(Command::SetTabPinned {
+        id: pinned,
+        pinned: true,
+        before: None,
+    });
+    shell.handle(Command::Run("tab.new".into()));
+    let open = active_id(&screen);
+    navigate_and_commit(&mut shell, open, "news.example");
+    shell.handle(Command::Run("tab.new".into()));
+    let front = active_id(&screen);
+    navigate_and_commit(&mut shell, front, "docs.example");
+    for id in [essential, pinned, open, front] {
+        assert!(
+            shell.items.tab(id).unwrap().has_view(),
+            "{id} starts loaded"
+        );
+    }
+
+    let suspended = shell.handle_operation(Command::SuspendSpace);
+    assert_ne!(suspended.outcome, OperationOutcome::Rejected);
+    for id in [essential, pinned, open] {
+        let tab = shell.items.tab(id).expect("a suspended tab stays");
+        assert!(!tab.has_view(), "{id} is unloaded");
+        assert!(tab.url.is_some(), "{id} keeps its page");
+    }
+    assert!(shell.items.tab(front).unwrap().has_view());
+    assert_eq!(active_id(&screen), front);
+    assert_eq!(
+        shell.handle_operation(Command::SuspendSpace).outcome,
+        OperationOutcome::NoOp
+    );
+
+    shell.handle(Command::Activate(open));
+    assert!(
+        shell.items.tab(open).unwrap().has_view(),
+        "opening loads it again"
+    );
+}
+
+#[test]
+fn a_kept_tab_returns_to_the_page_it_was_kept_at() {
+    let store = Arc::new(FakeStore::default());
+    let (mut shell, _engine, screen) = setup_with(store.clone());
+    shell.handle(Command::Bootstrap);
+    let pinned = active_id(&screen);
+    navigate_and_commit(&mut shell, pinned, "mail.example/inbox");
+    shell.handle(Command::SetTabPinned {
+        id: pinned,
+        pinned: true,
+        before: None,
+    });
+    let home = "https://mail.example/inbox";
+    navigate_and_commit(&mut shell, pinned, "mail.example/thread/7");
+    assert_eq!(shell.items.home(pinned).unwrap().as_str(), home);
+
+    // Moving among the kept places keeps the home; it survives a restart.
+    shell.handle(Command::SetTabEssential {
+        id: pinned,
+        essential: true,
+        before: None,
+    });
+    assert_eq!(shell.items.home(pinned).unwrap().as_str(), home);
+    shell.persist();
+    let saved = store.saved.lock().unwrap().clone().unwrap();
+    let restarted = Arc::new(FakeStore::default());
+    *restarted.saved.lock().unwrap() = Some(saved);
+    let (mut shell, _engine, _screen) = setup_with(restarted);
+    shell.handle(Command::Bootstrap);
+    assert_eq!(shell.items.home(pinned).unwrap().as_str(), home);
+    assert_eq!(
+        shell
+            .items
+            .tab(pinned)
+            .unwrap()
+            .url
+            .as_ref()
+            .unwrap()
+            .as_str(),
+        "https://mail.example/thread/7"
+    );
+
+    let back = shell.handle_operation(Command::ReturnHome(pinned));
+    assert_ne!(back.outcome, OperationOutcome::Rejected);
+    assert!(shell.items.pending_navigation_request(pinned).is_some());
+    shell.handle(Command::Engine(EngineEvent::UrlChanged {
+        id: pinned,
+        url: home.into(),
+    }));
+    present_committed(&mut shell, pinned, home);
+    assert_eq!(
+        shell.handle_operation(Command::ReturnHome(pinned)).outcome,
+        OperationOutcome::NoOp
+    );
+
+    // Closing it leaves it in place unloaded, still knowing its home.
+    navigate_and_commit(&mut shell, pinned, "mail.example/sent");
+    shell.handle(Command::Close(pinned));
+    let space = shell.windows.focused().unwrap().space;
+    let kept = shell.items.roots(Placement::Favorites { space })[0];
+    assert_eq!(shell.items.home(kept).unwrap().as_str(), home);
+
+    // An open tab has no home to return to.
+    shell.handle(Command::SetTabEssential {
+        id: kept,
+        essential: false,
+        before: None,
+    });
+    assert_eq!(shell.items.home(kept), None);
+    assert_eq!(
+        shell.handle_operation(Command::ReturnHome(kept)).outcome,
+        OperationOutcome::NoOp
+    );
+}
+
+#[test]
+fn a_renamed_tab_shows_its_name_until_it_is_cleared() {
+    let store = Arc::new(FakeStore::default());
+    let (mut shell, _engine, screen) = setup_with(store.clone());
+    shell.handle(Command::Bootstrap);
+    let id = active_id(&screen);
+    navigate_and_commit(&mut shell, id, "mail.example/inbox");
+    shell.handle(Command::Engine(EngineEvent::TitleChanged {
+        id,
+        title: "Inbox (3)".into(),
+    }));
+    let shown = |screen: &Screen| {
+        last(screen)
+            .tabs
+            .into_iter()
+            .find(|tab| tab.id == id.to_string())
+            .unwrap()
+            .title
+    };
+
+    let rename = |name: &str| Command::RenameTab {
+        id,
+        name: name.into(),
+    };
+    assert_ne!(
+        shell.handle_operation(rename("  Mail ")).outcome,
+        OperationOutcome::Rejected
+    );
+    assert_eq!(shown(&screen), "Mail");
+    assert_eq!(
+        shell.handle_operation(rename("Mail")).outcome,
+        OperationOutcome::NoOp
+    );
+    // The page goes on titling itself underneath the name.
+    shell.handle(Command::Engine(EngineEvent::TitleChanged {
+        id,
+        title: "Inbox (4)".into(),
+    }));
+    assert_eq!(shown(&screen), "Mail");
+
+    // Pinned, the name survives a restart and closing the tab.
+    shell.handle(Command::SetTabPinned {
+        id,
+        pinned: true,
+        before: None,
+    });
+    shell.persist();
+    let saved = store.saved.lock().unwrap().clone().unwrap();
+    let restarted = Arc::new(FakeStore::default());
+    *restarted.saved.lock().unwrap() = Some(saved);
+    let (mut shell, _engine, screen) = setup_with(restarted);
+    shell.handle(Command::Bootstrap);
+    assert_eq!(shell.items.tab(id).unwrap().name.as_deref(), Some("Mail"));
+    shell.handle(Command::Close(id));
+    let space = shell.windows.focused().unwrap().space;
+    let kept = shell.items.roots(Placement::Space {
+        space,
+        section: SpaceSection::Pinned,
+    })[0];
+    assert_eq!(shell.items.tab(kept).unwrap().name.as_deref(), Some("Mail"));
+
+    // An empty name gives the page title back.
+    assert_ne!(
+        shell
+            .handle_operation(Command::RenameTab {
+                id: kept,
+                name: " ".into(),
+            })
+            .outcome,
+        OperationOutcome::Rejected
+    );
+    assert_eq!(shell.items.tab(kept).unwrap().name, None);
+    let title = last(&screen)
+        .tabs
+        .into_iter()
+        .find(|tab| tab.id == kept.to_string())
+        .unwrap()
+        .title;
+    assert_eq!(title, "Inbox (4)");
 }

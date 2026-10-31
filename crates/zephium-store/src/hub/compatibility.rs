@@ -276,6 +276,8 @@ impl Hub {
                         title: title.unwrap_or_default(),
                         zoom,
                         last_active_ms: None,
+                        home: None,
+                        name: None,
                     },
                     _ => {
                         return Err(invalid_data("compatibility item has an invalid kind"));

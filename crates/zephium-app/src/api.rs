@@ -359,6 +359,11 @@ pub enum Command {
         work: Box<crate::store_reads::ImportWork>,
         done: ImportCompletion,
     },
+    /// The focused profile's Essentials and each of its spaces' pinned tabs,
+    /// as a file would hold them; None without a focused window.
+    ExportSidebar {
+        reply: SyncSender<Option<zephium_core::sidebar_file::SidebarFile>>,
+    },
     /// Hands the shell its notes service, once, after startup.
     AttachNotes(NotesAttachment),
     NoteCall {
@@ -388,6 +393,13 @@ pub enum Command {
     SetTabEssential {
         id: ItemId,
         essential: bool,
+        before: Option<ItemId>,
+    },
+    /// Moves a tab into the focused space's pinned section, or back among
+    /// its open tabs.
+    SetTabPinned {
+        id: ItemId,
+        pinned: bool,
         before: Option<ItemId>,
     },
     /// Keeps one of onboarding's catalog sites, named by its catalog id.
@@ -456,6 +468,20 @@ pub enum Command {
         id: ItemId,
         action: TabAction,
     },
+    /// Takes an Essential or pinned tab back to the page it was kept at.
+    ReturnHome(ItemId),
+    /// Shows `name` in place of the tab's page title; an empty one gives the
+    /// page title back.
+    RenameTab {
+        id: ItemId,
+        name: String,
+    },
+    /// Closes every open tab of the focused space; pinned tabs and
+    /// Essentials stay.
+    ClearSpace,
+    /// Unloads the focused space's tabs and the profile's Essentials, all but
+    /// those on screen. Each stays where it is and loads again when opened.
+    SuspendSpace,
     /// Something done to the focused profile's spaces.
     Space(Box<SpaceCommand>),
     SetWindowSize(Size),

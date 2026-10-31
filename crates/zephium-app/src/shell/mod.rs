@@ -178,6 +178,7 @@ impl AgentLifecycleOwner {
 
 mod browser_pages;
 mod kept_sites;
+mod sidebar_file;
 mod spaces;
 mod work_pane;
 
@@ -813,6 +814,9 @@ impl Shell {
             } => {
                 let _ = self.operation_set_tab_essential(id, essential, before);
             }
+            Command::SetTabPinned { id, pinned, before } => {
+                let _ = self.operation_set_tab_pinned(id, pinned, before);
+            }
             Command::KeepSite(id) => {
                 let _ = self.operation_keep_site(&id);
             }
@@ -893,6 +897,18 @@ impl Shell {
             }
             Command::TabAction { id, action } => {
                 let _ = self.operation_tab_action(id, action);
+            }
+            Command::ReturnHome(id) => {
+                let _ = self.operation_return_home(id);
+            }
+            Command::RenameTab { id, name } => {
+                let _ = self.operation_rename_tab(id, &name);
+            }
+            Command::ClearSpace => {
+                let _ = self.operation_clear_space();
+            }
+            Command::SuspendSpace => {
+                let _ = self.operation_suspend_space();
             }
             Command::Space(command) => {
                 let _ = self.operation_space(*command);
@@ -1054,6 +1070,9 @@ impl Shell {
                 work,
                 done,
             } => self.import_into_profile(destination, *work, done),
+            Command::ExportSidebar { reply } => {
+                let _ = reply.try_send(self.export_sidebar());
+            }
             Command::Export { kind, done } => self.export_from_focused(kind, done),
             Command::AttachFaviconProber(attachment) => self.attach_favicon_prober(attachment.0),
             Command::ProbeFavicons { profile, origins } => self.probe_favicons(profile, origins),

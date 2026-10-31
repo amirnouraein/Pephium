@@ -860,7 +860,10 @@ pub(crate) fn navigation_policy(
       {
         use objc2_app_kit::NSEventModifierFlags as Flags;
         let flags = action.modifierFlags();
-        if flags.contains(Flags::Command) || action.buttonNumber() == 2 {
+        // WebKit reports the pressed-buttons mask here, as NSEvent's
+        // pressedMouseButtons does: the middle button is 1 << 2, not 2.
+        const MIDDLE_BUTTON: isize = 1 << 2;
+        if flags.contains(Flags::Command) || action.buttonNumber() == MIDDLE_BUTTON {
           if let Some(open) = &this.ivars().new_window_req_handler {
             let response = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
               open(

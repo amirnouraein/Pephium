@@ -141,7 +141,9 @@ impl TabPreferences {
 struct KeptSlot {
     placement: Placement,
     url: url::Url,
+    home: Option<url::Url>,
     title: String,
+    name: Option<String>,
     before: Option<ItemId>,
 }
 
@@ -258,7 +260,8 @@ impl Shell {
         self.forget_content_fullscreen(id);
         self.forget_tab_media(id);
         self.native_openers.remove(&id);
-        // An Essential is kept, not closed: the page ends and the site stays.
+        // An Essential or a pinned tab is kept, not closed: the page ends and
+        // the site stays.
         let kept = self.kept_slot(id);
         let closed = kept
             .is_none()
@@ -320,12 +323,20 @@ impl Shell {
         native
     }
 
-    /// Where an Essential sits, so closing it can leave it there unloaded.
+    /// Where an Essential or a pinned tab sits, so closing it can leave it
+    /// there unloaded.
     fn kept_slot(&self, id: ItemId) -> Option<KeptSlot> {
         let item = self.items.get(id)?;
         let tab = item.tab()?;
         if item.parent.is_some()
-            || !matches!(item.placement, Placement::Favorites { .. })
+            || !matches!(
+                item.placement,
+                Placement::Favorites { .. }
+                    | Placement::Space {
+                        section: SpaceSection::Pinned,
+                        ..
+                    }
+            )
             || tab.content != zephium_core::item::TabContent::Web
         {
             return None;
@@ -335,7 +346,9 @@ impl Shell {
         Some(KeptSlot {
             placement: item.placement,
             url: tab.url.clone()?,
+            home: tab.home.clone(),
             title: tab.title.clone(),
+            name: tab.name.clone(),
             before: roots.get(at + 1).copied(),
         })
     }
@@ -352,6 +365,12 @@ impl Shell {
                 if let Some(before) = kept.before {
                     self.items
                         .move_tab_to_root(id, kept.placement, Some(before));
+                }
+                if let Some(home) = kept.home {
+                    self.items.set_home(id, home);
+                }
+                if let Some(name) = kept.name {
+                    self.items.set_name(id, &name);
                 }
                 return;
             }

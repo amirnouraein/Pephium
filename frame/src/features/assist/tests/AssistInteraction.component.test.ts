@@ -98,11 +98,12 @@ beforeEach(() => {
 async function open(next: PageAssistStatusV1) {
   native.status = next;
   await page.viewport(400, 820);
-  const screen = await render(PanelStage, { profile: PROFILE });
+  const onclose = vi.fn();
+  const screen = await render(PanelStage, { profile: PROFILE, onclose });
   const field = screen.getByRole("textbox", { name: "Ask Zephium…" });
   await expect.element(field).toBeVisible();
   await expect.poll(() => native.statusCalls).toBeGreaterThan(0);
-  return { screen, field };
+  return { screen, field, onclose };
 }
 
 test("Enter sends with the page in front; Shift+Enter only adds a line; × leaves the page out", async () => {
@@ -140,6 +141,31 @@ test("a suggestion sends itself with the page", async () => {
       attachments: [{ kind: "page", tab: TAB }],
     }),
   );
+});
+
+test("Escape closes the panel when chrome focus is outside its content", async () => {
+  const onclose = vi.fn();
+  native.status = status();
+  const screen = await render(PanelStage, { profile: PROFILE, onclose });
+  const outside = document.createElement("button");
+  screen.container.append(outside);
+  outside.focus();
+  outside.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Escape", bubbles: true, isComposing: true }),
+  );
+  expect(onclose).not.toHaveBeenCalled();
+  await userEvent.keyboard("{Escape}");
+  expect(onclose).toHaveBeenCalledOnce();
+});
+
+test("the header offers a visible close button even while a reply is working", async () => {
+  const onclose = vi.fn();
+  native.status = status([person(1, "Summarize"), reply(2, [], { state: "working", cost: null })]);
+  const screen = await render(PanelStage, { profile: PROFILE, onclose });
+  const close = screen.getByRole("button", { name: "Close tool", exact: true });
+  await expect.element(close).toBeVisible();
+  await close.click();
+  expect(onclose).toHaveBeenCalledOnce();
 });
 
 test("while a reply works, Send is Stop, and Escape stops it before closing anything", async () => {
@@ -197,6 +223,7 @@ test("+ attaches another tab of the Space alongside the page in front", async ()
       tab(TAB, "https://news.ycombinator.com/", "Hacker News"),
       tab("tab-2", "https://github.com/zephium", "Zephium · GitHub"),
       tab("tab-3", "about:blank", ""),
+      tab("tab-4", "https://example.com/", "Example"),
     ],
   });
   const { screen, field } = await open(status());
@@ -205,8 +232,12 @@ test("+ attaches another tab of the Space alongside the page in front", async ()
   await expect
     .element(page.getByRole("menuitem", { name: /about:blank/u }))
     .not.toBeInTheDocument();
+  // The menu stays open, so several tabs go in one visit.
   await page.getByRole("menuitem", { name: /Zephium · GitHub/u }).click();
+  await page.getByRole("menuitem", { name: /Example/u }).click();
   await expect.element(screen.getByRole("button", { name: "Remove github.com" })).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Remove example.com" })).toBeVisible();
+  await userEvent.keyboard("{Escape}");
   await field.fill("Compare these");
   await userEvent.keyboard("{Enter}");
   await expect.poll(() => native.ask.mock.calls.length).toBe(1);
@@ -215,6 +246,7 @@ test("+ attaches another tab of the Space alongside the page in front", async ()
       attachments: [
         { kind: "page", tab: TAB },
         { kind: "page", tab: "tab-2" },
+        { kind: "page", tab: "tab-4" },
       ],
     }),
   );
@@ -288,7 +320,7 @@ test("the picker attaches what was picked; × detaches it; Escape cancels a pick
     pick: { tab: TAB, pick: "7", label: "Story list", host: "news.ycombinator.com" },
     fault: null,
   });
-  const { screen, field } = await open(status());
+  const { screen, field, onclose } = await open(status());
   const pickFromMenu = async () => {
     await screen.getByRole("button", { name: "Add" }).click();
     await page.getByRole("menuitem", { name: "Pick an element" }).click();
@@ -322,8 +354,12 @@ test("the picker attaches what was picked; × detaches it; Escape cancels a pick
   await expect
     .element(screen.getByRole("status").filter({ hasText: "Esc to cancel" }))
     .toBeVisible();
+  const outside = document.createElement("button");
+  screen.container.append(outside);
+  outside.focus();
   await userEvent.keyboard("{Escape}");
   await expect.poll(() => native.pickCancel.mock.calls.at(-1)).toEqual([TAB]);
+  expect(onclose).not.toHaveBeenCalled();
 });
 
 test("history lists past conversations, opens one and deletes one", async () => {

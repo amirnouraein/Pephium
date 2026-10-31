@@ -23,7 +23,7 @@ use zephium_page_assist::{css, guard, prompt, suggest, text};
 
 use super::port::{
     BringRequest, Glow, ReadFailure, ResolvedModel, Role, StepEffect, StepFailure, StepRequest,
-    WorkStart,
+    TabFacts, WorkStart,
 };
 use super::tools::{self, Call, ItemCall};
 use super::{
@@ -258,12 +258,40 @@ impl Reply {
     // ----------------------------------------------------------------- reads
 
     async fn read_tab(&self, tab: &str) -> Result<usize, PageAssistFaultV1> {
+        let before = self.service.ports().page.facts(tab);
+        let started = self.now();
+        let result = self.read_tab_once(tab).await;
+        if let Err(fault) = result {
+            // Says why a tab could not be read, never what it holds.
+            let after = self.service.ports().page.facts(tab);
+            let flags = |facts: &Option<TabFacts>| facts.as_ref().map(|f| (f.sleeping, f.loading));
+            self.note(format_args!(
+                "read failed fault={fault:?} before(sleeping,loading)={:?} after={:?} ms={}",
+                flags(&before),
+                flags(&after),
+                self.now().saturating_sub(started)
+            ));
+        }
+        result
+    }
+
+    async fn read_tab_once(&self, tab: &str) -> Result<usize, PageAssistFaultV1> {
         let ports = self.service.ports();
-        let facts = ports
-            .page
-            .facts(tab)
-            .filter(|facts| facts.profile == self.profile)
-            .ok_or(PageAssistFaultV1::Unavailable)?;
+        let facts_now = || {
+            ports
+                .page
+                .facts(tab)
+                .filter(|facts| facts.profile == self.profile)
+                .ok_or(PageAssistFaultV1::Unavailable)
+        };
+        let mut facts = facts_now()?;
+        // A tab opened in the background has no page until it is shown.
+        // ponytail: woken and awaited one at a time; wake every attached tab
+        // up front if several cold tabs make the first reply slow.
+        if facts.sleeping && ports.tabs.wake(&self.profile, tab) {
+            settled(ports, tab).await;
+            facts = facts_now()?;
+        }
         if let Some(fault) =
             zephium_page_assist::policy::refusal(self.service.availability(Some(&facts)).await)
         {
@@ -300,6 +328,10 @@ impl Reply {
             &zephium_agentic::contains_recognized_secret,
         );
         if page.fragments.is_empty() {
+            self.note(format_args!(
+                "read empty passages={}",
+                readout.passages.len()
+            ));
             return Err(PageAssistFaultV1::Unreadable);
         }
         let traits = page.traits;
@@ -393,7 +425,11 @@ impl Reply {
                             .and_then(|facts| facts.url)
                             .map(|url| host_of(&url))
                             .unwrap_or_default();
-                        parts.push(format!("(The page {host} could not be read just now.)"));
+                        // The handle says which tab it is when several share a site.
+                        parts.push(format!(
+                            "(The attached page {} · {host} could not be read just now.)",
+                            self.handle(tab)
+                        ));
                     }
                 },
                 Admitted::Selection { tab, text } => {
@@ -944,7 +980,7 @@ async fn settled(ports: &super::Ports, tab: &str) {
     let started = tokio::time::Instant::now();
     while started.elapsed() < OPEN_TIMEOUT {
         match ports.page.facts(tab) {
-            Some(facts) if !facts.loading => break,
+            Some(facts) if !facts.loading && !facts.sleeping => break,
             None if started.elapsed() > UNLISTED_TIMEOUT => break,
             _ => tokio::time::sleep(Duration::from_millis(150)).await,
         }

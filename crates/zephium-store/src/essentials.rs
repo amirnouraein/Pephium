@@ -133,6 +133,8 @@ mod tests {
                 title: url.into(),
                 zoom: 1.0,
                 last_active_ms: None,
+                home: None,
+                name: None,
             },
         }
     }

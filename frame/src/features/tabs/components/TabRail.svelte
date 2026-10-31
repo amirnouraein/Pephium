@@ -21,16 +21,13 @@
   import { remember } from "../lib/space-memory";
   import * as requests from "../lib/space-requests.svelte";
   import { arrive, spaceSwipe, stepSpace } from "../lib/space-swipe";
-  import { closeOnMiddleClick } from "../lib/middle-click";
+  import { tabGestures } from "$session/tab-gestures";
 
   let {
     entries,
-    closable = new Set<string>(),
     onSelect,
   }: {
     entries: TabView[];
-    /** Tabs the expanded list shows a close button for. */
-    closable?: ReadonlySet<string>;
     onSelect: (id: string) => void;
   } = $props();
 
@@ -47,13 +44,16 @@
   const drag = new RowDrag({
     list: () => list,
     region: () => scroller,
-    reorder: () => ({ essential: false }),
+    reorder: () => "today",
     drop: ({ id, x, y, over, before }) => {
       const essential = !!over?.closest("[data-essentials-drop]");
       // A tab that cannot be kept goes back where it was.
       if (essential && !tabDrag.keepable(id)) return;
       if (tabs.inSplit(id) && (essential || over?.closest("[data-tabs-drop]")))
-        void tabDrag.leaveSplit(id, essential || before ? { essential, before } : null);
+        void tabDrag.leaveSplit(
+          id,
+          essential || before ? { to: essential ? "essentials" : "today", before } : null,
+        );
       else if (essential) void tabDrag.move(id, true, before);
       else tabs.dropTab(id, x, y);
     },
@@ -157,21 +157,22 @@
               type="button"
               class="rail-item"
               data-plate
-              title={tab.title || m.untitled_tab()}
+              title={tabs.label(tab)}
               aria-current={active ? "page" : undefined}
-              aria-label={tab.title || m.untitled_tab()}
+              aria-label={tabs.label(tab)}
               oncontextmenu={(event) => handleContextMenu(event, tab)}
               onpointerdown={(event) => drag.down(event, tab.id)}
               onpointermove={(event) => drag.move(event)}
               onpointerup={(event) => drag.up(event)}
               onpointercancel={(event) => drag.cancel(event)}
               onclick={() => !drag.swallowClick() && onSelect(tab.id)}
-              {...closable.has(tab.id) ? closeOnMiddleClick(() => tabs.close(tab.id)) : {}}
+              {...tabGestures(tab.id)}
             >
               <FavIcon
                 image={favicons.image(tab.icon)}
                 tone={favicons.tone(tab.icon)}
                 loading={tab.loading}
+                sleeping={tabs.asleep(tab)}
                 lit={active}
                 size={16}
                 fallback={tabFallbackIcon(tab.content)}

@@ -1729,6 +1729,12 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             tabs_activate,
             tabs_close,
             tabs_set_essential,
+            tabs_set_pinned,
+            tabs_duplicate,
+            tabs_return_home,
+            tabs_rename,
+            space_clear,
+            space_suspend,
             essentials_keep,
             essentials_release,
             profile_rename,
@@ -1868,6 +1874,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             browser_import::import_start,
             browser_import::import_cancel,
             browser_import::import_open_permission,
+            browser_import::sidebar_export,
+            browser_import::sidebar_import,
             data_export::export_browser_data,
             history_menu::history_menu_popup,
             page_source::page_source,
@@ -2337,6 +2345,7 @@ const MAX_LAUNCHER_QUERY_BYTES: usize = 2 * 1024;
 const MAX_COMMAND_ID_BYTES: usize = 128;
 const MAX_KEPT_SITE_ID_BYTES: usize = 32;
 const MAX_PROFILE_NAME_BYTES: usize = 256;
+const MAX_TAB_NAME_BYTES: usize = zephium_core::session::MAX_SESSION_NAME_CHARS * 4;
 const MAX_WINDOW_COORDINATE: f64 = 1_000_000.0;
 use zephium_core::layout::{MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH};
 
@@ -2823,6 +2832,57 @@ fn tabs_close(
     dispatch_with_id(caller.app_handle(), &shell, &id, Command::Close)
 }
 
+/// Opens the same page in a new tab right after it, as the tab menu does.
+#[tauri::command]
+#[specta::specta]
+fn tabs_duplicate(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    id: String,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "tabs_duplicate") {
+        return rejected_operation();
+    }
+    dispatch_with_id(caller.app_handle(), &shell, &id, |id| Command::TabAction {
+        id,
+        action: TabAction::Duplicate,
+    })
+}
+
+/// Takes an Essential or pinned tab back to the page it was kept at.
+#[tauri::command]
+#[specta::specta]
+fn tabs_return_home(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    id: String,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "tabs_return_home") {
+        return rejected_operation();
+    }
+    dispatch_with_id(caller.app_handle(), &shell, &id, Command::ReturnHome)
+}
+
+/// Shows `name` in place of the tab's page title; an empty one gives the page
+/// title back.
+#[tauri::command]
+#[specta::specta]
+fn tabs_rename(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    id: String,
+    name: String,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "tabs_rename") || !bounded(&name, MAX_TAB_NAME_BYTES)
+    {
+        return rejected_operation();
+    }
+    dispatch_with_id(caller.app_handle(), &shell, &id, |id| Command::RenameTab {
+        id,
+        name,
+    })
+}
+
 #[tauri::command]
 #[specta::specta]
 fn tabs_set_essential(
@@ -2857,6 +2917,61 @@ fn tabs_set_essential(
             before,
         },
     )
+}
+
+#[tauri::command]
+#[specta::specta]
+fn tabs_set_pinned(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+    id: String,
+    pinned: bool,
+    before: Option<String>,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "tabs_set_pinned")
+        || !bounded(&id, MAX_ITEM_ID_BYTES)
+    {
+        return rejected_operation();
+    }
+    let Some(id) = ItemId::parse(&id) else {
+        return rejected_operation();
+    };
+    let before = match before {
+        Some(value) if bounded(&value, MAX_ITEM_ID_BYTES) => match ItemId::parse(&value) {
+            Some(id) => Some(id),
+            None => return rejected_operation(),
+        },
+        Some(_) => return rejected_operation(),
+        None => None,
+    };
+    dispatch_operation(
+        caller.app_handle(),
+        &shell,
+        Command::SetTabPinned { id, pinned, before },
+    )
+}
+
+/// Closes the focused space's open tabs; pinned tabs and Essentials stay.
+#[tauri::command]
+#[specta::specta]
+fn space_clear(caller: WebviewWindow, shell: State<'_, Handle>) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "space_clear") {
+        return rejected_operation();
+    }
+    dispatch_operation(caller.app_handle(), &shell, Command::ClearSpace)
+}
+
+/// Unloads the focused space's tabs and Essentials but those on screen.
+#[tauri::command]
+#[specta::specta]
+fn space_suspend(
+    caller: WebviewWindow,
+    shell: State<'_, Handle>,
+) -> zephium_ipc::OperationAdmission {
+    if !authorize(&caller, CallerPolicy::Main, "space_suspend") {
+        return rejected_operation();
+    }
+    dispatch_operation(caller.app_handle(), &shell, Command::SuspendSpace)
 }
 
 /// Onboarding keeps a site by its catalog id; native owns the address and
@@ -3904,6 +4019,14 @@ fn execute_tab_menu_action(
     let Some((id, capture)) = target.take() else {
         return rejected_operation();
     };
+    if action == "rename" {
+        // Chrome edits the name in place, on the row it mirrored as the target.
+        return if try_emit_to_privileged(app, MAIN_LABEL, EVENT_UI, &TAB_MENU_RENAME_COMMAND) {
+            accepted_ui_operation()
+        } else {
+            rejected_operation()
+        };
+    }
     if action == "copyLink" {
         // The clipboard write stays in privileged chrome, which already holds
         // the authoritative URL for this tab. Native never handles page text.
@@ -3936,6 +4059,11 @@ fn execute_tab_menu_action(
         essential,
         before: None,
     };
+    let pin = |pinned| Command::SetTabPinned {
+        id,
+        pinned,
+        before: None,
+    };
     match action {
         "reload" => dispatch_operation(app, &shell, Command::Reload(id)),
         "close" => dispatch_operation(app, &shell, Command::Close(id)),
@@ -3964,6 +4092,8 @@ fn execute_tab_menu_action(
             },
         ),
         "unkeep" => dispatch_operation(app, &shell, keep(false)),
+        "pin" => dispatch_operation(app, &shell, pin(true)),
+        "unpin" => dispatch_operation(app, &shell, pin(false)),
         "split" => dispatch_operation(
             app,
             &shell,
@@ -5803,6 +5933,9 @@ fn build_add_menu(
 const TAB_MENU_COPY_LINK_COMMAND: &str = "tab.copyLink";
 const TAB_MENU_CLEAR_SITE_DATA_COMMAND: &str = "tab.clearSiteData";
 
+/// Delivered to privileged chrome, which edits the armed tab's name in place.
+const TAB_MENU_RENAME_COMMAND: &str = "tab.rename";
+
 /// Registry command delivered to the frame, which owns sidebar presentation.
 const SIDEBAR_COMPACT_COMMAND: &str = "sidebar.toggleCompact";
 
@@ -5834,7 +5967,7 @@ const BOOKMARK_MENU_ACTION_IDS: [&str; 6] = [
     "bookmarkmenu.removeFolder",
 ];
 
-const TAB_MENU_ACTION_IDS: [&str; 14] = [
+const TAB_MENU_ACTION_IDS: [&str; 17] = [
     "tabmenu.reload",
     "tabmenu.duplicate",
     "tabmenu.copyLink",
@@ -5849,6 +5982,9 @@ const TAB_MENU_ACTION_IDS: [&str; 14] = [
     "tabmenu.unmute",
     "tabmenu.stopCapture",
     "tabmenu.clearSiteData",
+    "tabmenu.pin",
+    "tabmenu.unpin",
+    "tabmenu.rename",
 ];
 const TAB_MENU_CLEAR_SITE_DATA: usize = 13;
 
@@ -5860,6 +5996,8 @@ struct TabMenuContext {
     page: bool,
     can_split: bool,
     essential: bool,
+    /// The tab sits among the space's pinned tabs, in a folder or not.
+    pinned: bool,
     /// Other open tabs exist to close.
     others: bool,
     /// Open tabs follow this one.
@@ -6034,6 +6172,12 @@ fn build_tab_menu(
     let duplicate = item(1, "Duplicate Tab", context.page)?;
     let copy_link = item(2, "Copy Link", context.page)?;
     let bookmark = item(3, "Bookmark Tab", context.page)?;
+    // An Essential shows no title to rename.
+    let rename = if context.essential {
+        None
+    } else {
+        Some(item(16, "Rename Tab", context.page)?)
+    };
     let clear_site_data = item(
         TAB_MENU_CLEAR_SITE_DATA,
         "Clear Data for This Site…",
@@ -6044,6 +6188,15 @@ fn build_tab_menu(
         item(5, "Remove from Essentials", true)?
     } else {
         item(4, "Add to Essentials", context.page)?
+    };
+    // Pinned tabs live in a space; Essentials are every space's, so they
+    // have nothing to pin to.
+    let pin = if context.essential {
+        None
+    } else if context.pinned {
+        Some(item(15, "Unpin Tab", true)?)
+    } else {
+        Some(item(14, "Pin Tab", context.page)?)
     };
     let split = item(6, "Open in Split View", context.can_split)?;
     let mute = if !zephium_engine::page_mute_supported() {
@@ -6070,16 +6223,19 @@ fn build_tab_menu(
     let others = item(8, "Close Other Tabs", context.others)?;
     let below = item(9, "Close Tabs Below", context.below)?;
     let move_to = spaces::tab_menu_section(handle, &format!("tabmenu.{}", spaces::TAB_MENU_MOVE))?;
-    let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![
-        &reload,
-        &duplicate,
-        &copy_link,
-        &bookmark,
-        &clear_site_data,
+    let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> =
+        vec![&reload, &duplicate, &copy_link, &bookmark];
+    if let Some(rename) = &rename {
+        items.push(rename);
+    }
+    items.extend([
+        &clear_site_data as &dyn tauri::menu::IsMenuItem<tauri::Wry>,
         &first,
-        &keep,
-        &split,
-    ];
+    ]);
+    if let Some(pin) = &pin {
+        items.push(pin);
+    }
+    items.extend([&keep as &dyn tauri::menu::IsMenuItem<tauri::Wry>, &split]);
     if let Some(move_to) = &move_to {
         items.push(move_to);
     }
@@ -7850,7 +8006,10 @@ mod tests {
                 "tabmenu.mute",
                 "tabmenu.unmute",
                 "tabmenu.stopCapture",
-                "tabmenu.clearSiteData"
+                "tabmenu.clearSiteData",
+                "tabmenu.pin",
+                "tabmenu.unpin",
+                "tabmenu.rename"
             ]
         );
         assert_eq!(
@@ -9319,6 +9478,19 @@ mod tests {
         assert!(
             entitlements.contains("<key>com.apple.security.personal-information.location</key>")
         );
+    }
+
+    #[test]
+    fn macos_bundle_declares_page_location_usage_and_entitlement() {
+        let plist = include_str!("../Info.plist");
+        for key in [
+            "NSLocationUsageDescription",
+            "NSLocationWhenInUseUsageDescription",
+        ] {
+            assert!(plist.contains(&format!("<key>{key}</key>")), "{key}");
+        }
+        assert!(include_str!("../Entitlements.plist")
+            .contains("<key>com.apple.security.personal-information.location</key>"));
     }
 
     #[test]

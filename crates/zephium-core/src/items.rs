@@ -196,15 +196,31 @@ impl Items {
         url: Url,
         title: &str,
     ) -> bool {
+        self.insert_unloaded_tab_in(id, placement, None, url, title)
+    }
+
+    /// As `insert_unloaded_tab`, at the end of `parent` when one is named.
+    pub fn insert_unloaded_tab_in(
+        &mut self,
+        id: ItemId,
+        placement: Placement,
+        parent: Option<ItemId>,
+        url: Url,
+        title: &str,
+    ) -> bool {
         if !navigation::is_allowed(&url) {
             return false;
         }
         let mut tab = TabState::new();
+        tab.home = placement
+            .keeps()
+            .then(|| url.clone())
+            .filter(navigation::is_web_page);
         tab.url = Some(url);
         tab.title = sanitize_page_title(title);
         self.insert(Item {
             id,
-            parent: None,
+            parent,
             placement,
             kind: ItemKind::Tab(tab),
         })
@@ -313,7 +329,36 @@ impl Items {
             item.parent = None;
             item.placement = placement;
         }
+        // A tab kept where it already was keeps its home; one leaving the
+        // kept places forgets it.
+        if let Some(tab) = self.tab_mut(id) {
+            if !placement.keeps() {
+                tab.home = None;
+            } else if tab.home.is_none() {
+                tab.home = tab.url.clone().filter(navigation::is_web_page);
+            }
+        }
         true
+    }
+
+    /// The page an Essential or pinned tab was kept at, for returning to it.
+    pub fn home(&self, id: ItemId) -> Option<&Url> {
+        self.tab(id)?.home.as_ref()
+    }
+
+    /// Carries a kept tab's home over to the tab that takes its place.
+    pub fn set_home(&mut self, id: ItemId, home: Url) -> bool {
+        let keeps = self
+            .items
+            .get(&id)
+            .is_some_and(|item| item.placement.keeps());
+        match self.tab_mut(id) {
+            Some(tab) if keeps && navigation::is_web_page(&home) => {
+                tab.home = Some(home);
+                true
+            }
+            _ => false,
+        }
     }
 
     pub fn remove(&mut self, id: ItemId) -> Vec<Effect> {
@@ -657,6 +702,20 @@ impl Items {
         true
     }
 
+    /// Names a tab, or with an empty name gives it back its page title.
+    /// Whether the name changed.
+    pub fn set_name(&mut self, id: ItemId, name: &str) -> bool {
+        let Some(tab) = self.tab_mut(id) else {
+            return false;
+        };
+        let name = Some(crate::session::bounded_name(name.trim(), "")).filter(|n| !n.is_empty());
+        if tab.name == name {
+            return false;
+        }
+        tab.name = name;
+        true
+    }
+
     pub fn set_loading(&mut self, id: ItemId, loading: bool) {
         if let Some(tab) = self.tab_mut(id) {
             tab.loading = loading;
@@ -706,19 +765,26 @@ impl Items {
         }
     }
     pub fn set_committed_url(&mut self, id: ItemId, url: Url) -> bool {
-        if let Some(tab) = self.tab_mut(id) {
-            if tab.content != TabContent::Web {
-                return false;
-            }
-            tab.url = Some(url);
-            tab.page_request = None;
-            tab.failure = None;
-            self.pending_navigations.remove(&id);
-            self.opening.remove(&id);
-            true
-        } else {
-            false
+        let Some(item) = self.items.get_mut(&id) else {
+            return false;
+        };
+        let keeps = item.placement.keeps();
+        let Some(tab) = item.tab_mut() else {
+            return false;
+        };
+        if tab.content != TabContent::Web {
+            return false;
         }
+        // A tab kept before it had a page is kept at the first one.
+        if keeps && tab.home.is_none() && navigation::is_web_page(&url) {
+            tab.home = Some(url.clone());
+        }
+        tab.url = Some(url);
+        tab.page_request = None;
+        tab.failure = None;
+        self.pending_navigations.remove(&id);
+        self.opening.remove(&id);
+        true
     }
 
     /// Clears only the still-current intent. A delayed failure from an older

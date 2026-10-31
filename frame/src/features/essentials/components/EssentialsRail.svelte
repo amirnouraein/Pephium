@@ -12,6 +12,7 @@
   import CaptureControl from "$shared/ui/CaptureControl";
   import AudioControl from "$shared/ui/AudioControl";
   import { favicons } from "$domain/favicons";
+  import { tabGestures } from "$session/tab-gestures";
 
   let {
     entries,
@@ -33,7 +34,7 @@
   // site is no longer kept, anywhere else and native decides (a page).
   const drag = new RowDrag({
     list: () => list,
-    reorder: () => ({ essential: true }),
+    reorder: () => "essentials",
     drop: ({ id, x, y, over, before }) => {
       if (over?.closest("[data-tabs-drop]")) void tabDrag.move(id, false, before);
       else tabs.dropTab(id, x, y);
@@ -77,20 +78,22 @@
         type="button"
         class="rail-site"
         data-plate
-        title={tab.title || m.untitled_tab()}
+        title={tabs.label(tab)}
         aria-current={active ? "page" : undefined}
-        aria-label={tab.title || m.untitled_tab()}
+        aria-label={tabs.label(tab)}
         oncontextmenu={(event) => handleContextMenu(event, tab)}
         onpointerdown={(event) => drag.down(event, tab.id)}
         onpointermove={(event) => drag.move(event)}
         onpointerup={(event) => drag.up(event)}
         onpointercancel={(event) => drag.cancel(event)}
         onclick={() => !drag.swallowClick() && onSelect(tab.id)}
+        {...tabGestures(tab.id)}
       >
         <FavIcon
           image={favicons.image(tab.icon)}
           tone={favicons.tone(tab.icon)}
           loading={tab.loading}
+          sleeping={tabs.asleep(tab)}
           size={16}
           lit
           fallback={Globe02Icon}

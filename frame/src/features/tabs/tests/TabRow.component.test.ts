@@ -1,11 +1,22 @@
-import { expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { flushSync } from "svelte";
 import { render } from "vitest-browser-svelte";
 import { userEvent } from "vitest/browser";
 import { tabFixture, revision } from "$shared/testing/fixtures";
 import { emitNativeEvent } from "$shared/testing/native-events";
 import { events } from "$shared/ipc/native-events";
+import { commands } from "$shared/ipc/bindings";
+import { tabs } from "$domain/tabs";
 import TabRow from "../components/TabRow.svelte";
+
+// The row asks native directly; the spies stand in for it.
+const admitted = { accepted: true, operation_id: null };
+const closeTab = vi.spyOn(commands, "tabsClose").mockResolvedValue(admitted);
+const returnHome = vi.spyOn(commands, "tabsReturnHome").mockResolvedValue(admitted);
+const rename = vi.spyOn(commands, "tabsRename").mockResolvedValue(admitted);
+vi.spyOn(commands, "tabMenuPopup").mockResolvedValue(true);
+
+afterEach(() => vi.clearAllMocks());
 
 test("presentation sentinels expose the exact title and revision synchronously", async () => {
   const tab = tabFixture({ title: "  <img onerror=unsafe()> & title  " });
@@ -86,14 +97,19 @@ function renderRow(closable: boolean) {
   return { tab, props, screen: render(TabRow, props) };
 }
 
-test("a middle-click closes a row that has a close button, and only that", async () => {
-  const { tab, props, screen } = renderRow(true);
-  const row = (await screen).getByRole("button", { name: "Docs", exact: true });
-  await userEvent.click(row, { button: "middle" });
-  expect(props.onClose).toHaveBeenCalledExactlyOnceWith(tab.id);
-  expect(props.onSelect).not.toHaveBeenCalled();
-  await userEvent.click(row, { button: "right" });
-  expect(props.onClose).toHaveBeenCalledTimes(1);
+test("a middle-click closes any row, pinned or not, and selects nothing", async () => {
+  for (const closable of [true, false]) {
+    closeTab.mockClear();
+    const { tab, props, screen } = renderRow(closable);
+    const row = (await screen).getByRole("button", { name: "Docs", exact: true });
+    await userEvent.click(row, { button: "middle" });
+    expect(closeTab).toHaveBeenCalledExactlyOnceWith(tab.id);
+    expect(props.onClose).not.toHaveBeenCalled();
+    expect(props.onSelect).not.toHaveBeenCalled();
+    await userEvent.click(row, { button: "right" });
+    expect(closeTab).toHaveBeenCalledTimes(1);
+    (await screen).unmount();
+  }
 });
 
 test("a middle press does not start autoscroll", async () => {
@@ -108,10 +124,62 @@ test("a middle press does not start autoscroll", async () => {
   expect(press(0)).toBe(false);
 });
 
-test("a middle-click leaves a pinned row open", async () => {
-  const { props, screen } = renderRow(false);
-  await userEvent.click((await screen).getByRole("button", { name: "Docs", exact: true }), {
-    button: "middle",
-  });
-  expect(props.onClose).not.toHaveBeenCalled();
+test("a double-click asks native to take the tab back to its kept page", async () => {
+  const { tab, screen } = renderRow(false);
+  await userEvent.dblClick((await screen).getByRole("button", { name: "Docs", exact: true }));
+  expect(returnHome).toHaveBeenCalledExactlyOnceWith(tab.id);
+});
+
+test("the tab menu's Rename edits the name in place; Escape keeps it, empty clears it", async () => {
+  const { tab, screen } = renderRow(false);
+  const page = await screen;
+  const startRename = () => {
+    tabs.openTabMenu(tab.id, 0, 0);
+    tabs.renameMenuTarget();
+    flushSync();
+  };
+
+  startRename();
+  const field = page.getByRole("textbox", { name: "Tab name" });
+  await expect.element(field).toHaveValue("Docs");
+  await userEvent.keyboard("{Escape}");
+  expect(rename).not.toHaveBeenCalled();
+  await expect.element(page.getByRole("button", { name: "Docs", exact: true })).toBeVisible();
+
+  startRename();
+  await userEvent.fill(page.getByRole("textbox", { name: "Tab name" }), "  Mail ");
+  await userEvent.keyboard("{Enter}");
+  expect(rename).toHaveBeenCalledExactlyOnceWith(tab.id, "Mail");
+
+  rename.mockClear();
+  startRename();
+  await userEvent.clear(page.getByRole("textbox", { name: "Tab name" }));
+  await userEvent.keyboard("{Enter}");
+  expect(rename).toHaveBeenCalledExactlyOnceWith(tab.id, "");
+});
+
+test("a sleeping tab fades its mark and title and says it is asleep", async () => {
+  const awake = tabFixture({ title: "Docs" });
+  const props = {
+    tab: awake,
+    active: false,
+    splitCandidate: false,
+    onSelect: vi.fn(),
+    onClose: vi.fn(),
+    onContextMenu: vi.fn(),
+    onPointerDown: vi.fn(),
+    onPointerMove: vi.fn(),
+    onPointerUp: vi.fn(),
+    onPointerCancel: vi.fn(),
+  };
+  const screen = await render(TabRow, props);
+  const favicon = () => screen.container.querySelector("[data-favicon]");
+  expect(favicon()?.hasAttribute("data-sleeping")).toBe(false);
+  await expect.element(screen.getByRole("button", { name: "Docs", exact: true })).toBeVisible();
+
+  await screen.rerender({ ...props, tab: { ...awake, availability: { state: "sleeping" } } });
+  expect(favicon()?.hasAttribute("data-sleeping")).toBe(true);
+  await expect
+    .element(screen.getByRole("button", { name: "Docs (sleeping)", exact: true }))
+    .toBeVisible();
 });

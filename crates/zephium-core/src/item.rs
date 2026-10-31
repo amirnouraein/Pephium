@@ -112,11 +112,31 @@ pub enum Placement {
     },
 }
 
+impl Placement {
+    /// Essentials and pinned tabs: kept places, whose tabs remember the page
+    /// they were kept at.
+    pub fn keeps(self) -> bool {
+        matches!(
+            self,
+            Self::Favorites { .. }
+                | Self::Space {
+                    section: SpaceSection::Pinned,
+                    ..
+                }
+        )
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct TabState {
     pub content: TabContent,
     pub title: String,
+    /// What the person named the tab, shown in place of the page title.
+    pub name: Option<String>,
     pub url: Option<Url>,
+    /// The web page an Essential or pinned tab was kept at, which it can
+    /// return to however far it has wandered. None for any other tab.
+    pub home: Option<Url>,
     pub loading: bool,
     /// Something the page asked for that waits on the person. Runtime only,
     /// and cleared when the tab commits another document.
@@ -171,7 +191,9 @@ impl TabState {
         Self {
             content: TabContent::Web,
             title: "New Tab".into(),
+            name: None,
             url: None,
+            home: None,
             loading: false,
             page_request: None,
             can_go_back: false,
@@ -220,6 +242,10 @@ impl TabState {
 }
 
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "Nearly every item is a tab; boxing it would cost an allocation per tab to save bytes on the few folders"
+)]
 pub enum ItemKind {
     Folder { name: String },
     Tab(TabState),

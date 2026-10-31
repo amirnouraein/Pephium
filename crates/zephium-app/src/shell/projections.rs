@@ -668,7 +668,7 @@ fn tab_view(
     TabView {
         id: id.to_string(),
         projection_revision: format!("{revision:032x}"),
-        title: tab.title.clone(),
+        title: tab.name.clone().unwrap_or_else(|| tab.title.clone()),
         url: tab.url.as_ref().map(ToString::to_string),
         content: match tab.content {
             zephium_core::item::TabContent::Web => zephium_ipc::TabContentView::Web,

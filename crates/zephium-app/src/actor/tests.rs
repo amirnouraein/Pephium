@@ -662,6 +662,26 @@ fn essentials_cross_the_tracked_operation_admission_boundary() {
 }
 
 #[test]
+fn pins_cross_the_tracked_operation_admission_boundary() {
+    let queue = CommandQueue::new();
+    let handle = Handle::new(queue.clone());
+    let id = ItemId::from(41_u128);
+    let before = Some(ItemId::from(42_u128));
+    for pinned in [true, false] {
+        assert!(handle.dispatch_operation(
+            "0000000000000001".into(),
+            Command::SetTabPinned { id, pinned, before }
+        ));
+        let Command::Operation { command, .. } = queue.try_recv().expect("admitted move") else {
+            panic!("expected tracked operation");
+        };
+        assert!(
+            matches!(*command, Command::SetTabPinned { id: actual, pinned: actual_pinned, before: actual_before } if actual == id && actual_pinned == pinned && actual_before == before)
+        );
+    }
+}
+
+#[test]
 fn a_brief_os_focus_loss_is_not_coalesced_away_by_focus_return() {
     let queue = CommandQueue::new();
     assert!(queue.try_push(Command::SetWindowFocused(false)).is_ok());

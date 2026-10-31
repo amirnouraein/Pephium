@@ -97,6 +97,7 @@ mod product {
         url: Option<String>,
         title: String,
         loading: bool,
+        sleeping: bool,
         viewer: bool,
         epoch: u64,
     }
@@ -127,6 +128,10 @@ mod product {
         profile: Option<(ProfileId, bool, Option<&str>)>,
     ) -> Option<(String, Option<String>)> {
         let viewer = tab.content != zephium_ipc::TabContentView::Web;
+        let sleeping = matches!(
+            tab.availability,
+            Some(zephium_ipc::TabAvailability::Sleeping)
+        );
         match tabs.get_mut(&tab.id) {
             Some(entry) => {
                 if let Some((profile, private, space)) = profile {
@@ -135,6 +140,7 @@ mod product {
                     entry.space = space.map(str::to_owned);
                 }
                 entry.loading = tab.loading;
+                entry.sleeping = sleeping;
                 entry.viewer = viewer;
                 entry.title.clone_from(&tab.title);
                 if entry.url != tab.url {
@@ -158,6 +164,7 @@ mod product {
                         url: tab.url.clone(),
                         title: tab.title.clone(),
                         loading: tab.loading,
+                        sleeping,
                         viewer,
                         epoch: 1,
                     },
@@ -425,6 +432,7 @@ mod product {
                     private: entry.private,
                     viewer: entry.viewer,
                     loading: entry.loading || unread,
+                    sleeping: entry.sleeping,
                     epoch: committed.unwrap_or(entry.epoch),
                 })
             })
@@ -879,6 +887,21 @@ mod product {
                         id,
                         input: url.to_owned(),
                     })
+        }
+        fn wake(&self, profile: &ProfileId, tab: &str) -> bool {
+            // Reload gives a tab without a view its view and nothing more; a
+            // live page would load again, so only a sleeping one is sent.
+            let sleeping = with_tabs(|tabs| {
+                tabs.get(tab).is_some_and(|entry| {
+                    entry.profile == *profile && !entry.private && entry.sleeping
+                })
+            });
+            let Some(id) = zephium_core::ids::ItemId::parse(tab).filter(|_| sleeping) else {
+                return false;
+            };
+            self.0
+                .state::<zephium_app::Handle>()
+                .dispatch(zephium_app::Command::Reload(id))
         }
         fn search_url(&self, _profile: &ProfileId, query: &str) -> Option<String> {
             let engine = self

@@ -210,9 +210,6 @@
   let railEssentials = $derived(
     tree.favorites.flatMap((entry) => (entry.kind === "tab" ? [entry.tab] : [])),
   );
-  let railClosable = $derived(
-    new Set(tree.today.flatMap((entry) => (entry.kind === "tab" ? [entry.tab.id] : []))),
-  );
 
   function linkCopied(copied: boolean) {
     if (copied) notices.show(m.notice_link_copied());
@@ -234,6 +231,7 @@
     untrack(() => {
       if (command.id === "split.choose") splitting = true;
       if (command.id === "tab.copyLink") void tabs.copyMenuTargetLink().then(linkCopied);
+      if (command.id === "tab.rename") tabs.renameMenuTarget();
       if (command.id === "page.copyLink") void tabs.copyActiveLink().then(linkCopied);
       if (command.id === "tab.clearSiteData") clearRequest.ask(tabs.takeMenuTargetUrl());
       if (command.id === "page.clearSiteData") clearRequest.ask(tabs.activeTab()?.url);
@@ -360,7 +358,7 @@
            new list settles in where the old one was. -->
       {#key inWork}<div class="sidebar-mode-body" data-arriving={modeSwitched}>
           {#if compact}
-            <TabRail entries={railTabs} closable={railClosable} onSelect={selectTab} />
+            <TabRail entries={railTabs} onSelect={selectTab} />
           {:else}
             <!--
             The switch sits above the address field because it governs the

@@ -565,6 +565,105 @@ pub(super) const MAX_HTML_CHARS: usize = 2 * 1024 * 1024;
 pub(super) const MAX_HTML_RESULT_BYTES: usize = (MAX_HTML_CHARS + 1) * 6 + 2;
 pub(super) const EXTRACT_HTML_JS: &str = "(function(){try{var f=globalThis.__zephium_extract_html_v1__;return typeof f==='function'?f(__MAX__):null}catch(_){return null}})()";
 
+// Scrolls the page to its top on a double middle-click, or to its bottom when
+// it is already at the top, and gives the page menu's Scroll to Top the
+// element the menu opened on. Both scroll the window and the boxes around that
+// element, since many apps scroll a box rather than the document. A middle-click on a link opens it in a new tab,
+// so links are left alone. Built-ins are captured first so a page cannot
+// redirect the scroll.
+pub(super) const SCROLL_TOP_BOOTSTRAP_JS: &str = r#"(function(){
+  'use strict';
+  var key = '__zephium_scroll_top_v1__';
+  if (Object.prototype.hasOwnProperty.call(globalThis, key)) return;
+  try {
+    var apply = Reflect.apply;
+    var scrollWindow = window.scrollTo;
+    var scrollElement = Element.prototype.scrollTo;
+    var closest = Element.prototype.closest;
+    var scrollTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop').get;
+    var parentElement = Object.getOwnPropertyDescriptor(Node.prototype, 'parentElement').get;
+    var rootNode = Node.prototype.getRootNode;
+    var scrollHeight = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight').get;
+    var clientHeight = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight').get;
+    var computedStyle = window.getComputedStyle;
+    var matchMedia = window.matchMedia;
+    var DOUBLE_MS = 500;
+    var SLOP = 8;
+    var last = null;
+    var aimed = null;
+    function behavior() {
+      try {
+        return apply(matchMedia, window, ['(prefers-reduced-motion: reduce)']).matches ? 'auto' : 'smooth';
+      } catch (_) { return 'auto'; }
+    }
+    // The element and the boxes around it, through shadow roots.
+    function around(from) {
+      var boxes = [];
+      for (var node = from; node instanceof Element && boxes.length < 512;) {
+        boxes.push(node);
+        var up = apply(parentElement, node, []);
+        if (!up) {
+          var root = apply(rootNode, node, []);
+          up = root && root.host ? root.host : null;
+        }
+        node = up;
+      }
+      return boxes;
+    }
+    function scrolls(box) {
+      if (apply(scrollHeight, box, []) <= apply(clientHeight, box, []) + 1) return false;
+      var overflow = apply(computedStyle, window, [box]).overflowY;
+      return overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay';
+    }
+    function top(from) {
+      var how = behavior();
+      var boxes = around(from);
+      for (var i = 0; i < boxes.length; i++) {
+        if (apply(scrollTop, boxes[i], []) > 0) apply(scrollElement, boxes[i], [{ top: 0, behavior: how }]);
+      }
+      apply(scrollWindow, window, [{ top: 0, behavior: how }]);
+    }
+    function topOrBottom(from) {
+      var boxes = around(from);
+      var scrolled = window.scrollY > 0;
+      for (var i = 0; i < boxes.length && !scrolled; i++) scrolled = apply(scrollTop, boxes[i], []) > 0;
+      if (scrolled) return top(from);
+      // Already at the top: the nearest box that scrolls, else the document.
+      var how = behavior();
+      for (var j = 0; j < boxes.length; j++) {
+        if (scrolls(boxes[j])) {
+          apply(scrollElement, boxes[j], [{ top: apply(scrollHeight, boxes[j], []), behavior: how }]);
+          return;
+        }
+      }
+      var page = document.scrollingElement || document.documentElement;
+      if (page) apply(scrollWindow, window, [{ top: apply(scrollHeight, page, []), behavior: how }]);
+    }
+    addEventListener('mouseup', function (event) {
+      if (event.button !== 1 || !event.isTrusted) return;
+      var target = event.target instanceof Element ? event.target : null;
+      if (target && apply(closest, target, ['a[href]'])) { last = null; return; }
+      var now = event.timeStamp;
+      if (last && now - last.at < DOUBLE_MS
+          && Math.abs(event.clientX - last.x) < SLOP && Math.abs(event.clientY - last.y) < SLOP) {
+        last = null;
+        topOrBottom(target);
+        return;
+      }
+      last = { at: now, x: event.clientX, y: event.clientY };
+    }, true);
+    addEventListener('contextmenu', function (event) {
+      if (event.isTrusted) aimed = event.target instanceof Element ? event.target : null;
+    }, true);
+    Object.defineProperty(globalThis, key, {
+      value: function () { var from = aimed; aimed = null; top(from); },
+      writable: false, configurable: false, enumerable: false
+    });
+  } catch (_) {}
+})()"#;
+
+pub(crate) const SCROLL_TOP_JS: &str = "(function(){try{var f=globalThis.__zephium_scroll_top_v1__;if(typeof f==='function')f()}catch(_){}})()";
+
 fn style_script(style: &UserStyle) -> UserScript {
     // WebView2 runs document-start scripts before <html> exists; WebKit does
     // not. The observer path injects the instant the root appears.
@@ -619,7 +718,7 @@ struct ProtectedScriptSpec {
 }
 
 const PROTECTED_SCRIPT_SPECS: [ProtectedScriptSpec;
-    3 + cfg!(not(target_os = "macos")) as usize
+    4 + cfg!(not(target_os = "macos")) as usize
         + cfg!(any(target_os = "macos", target_os = "windows")) as usize] = [
     ProtectedScriptSpec {
         id: 6,
@@ -634,6 +733,11 @@ const PROTECTED_SCRIPT_SPECS: [ProtectedScriptSpec;
     ProtectedScriptSpec {
         id: 2,
         source: EXTRACT_HTML_BOOTSTRAP_JS,
+        all_frames: false,
+    },
+    ProtectedScriptSpec {
+        id: 7,
+        source: SCROLL_TOP_BOOTSTRAP_JS,
         all_frames: false,
     },
     // WKWebView has no page-initiated print surface, so only WebView2 needs

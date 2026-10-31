@@ -62,9 +62,12 @@ impl PagePort for FakePage {
         let mut state = self.lock();
         state.reads += 1;
         let read = state.reads;
+        // A sleeping tab has no page to read, as in the engine.
+        let awake = state.facts.get(tab).is_none_or(|facts| !facts.sleeping);
         let readout = state
             .readouts
             .get(tab)
+            .filter(|_| awake)
             .cloned()
             .map(|mut readout| {
                 readout.read = read;
@@ -352,6 +355,15 @@ impl Tabs for FakeTabs {
         );
         true
     }
+    fn wake(&self, _profile: &ProfileId, tab: &str) -> bool {
+        self.0.lock().unwrap().push(format!("wake {tab}"));
+        let mut page = self.1.lock();
+        let Some(facts) = page.facts.get_mut(tab) else {
+            return false;
+        };
+        facts.sleeping = false;
+        true
+    }
     fn search_url(&self, _profile: &ProfileId, query: &str) -> Option<String> {
         let base = self
             .2
@@ -566,6 +578,7 @@ fn facts(url: &str) -> TabFacts {
         private: false,
         viewer: false,
         loading: false,
+        sleeping: false,
         epoch: 1,
     }
 }
@@ -1085,6 +1098,39 @@ async fn other_tabs_are_read_by_handle_and_sensitive_ones_never() {
     let (read, is_error) = h.tool_result(2);
     assert!(is_error && read.contains("sensitive"), "{read}");
     assert_eq!(text_of(&h.blocks().await), "The guide says brew .");
+}
+
+#[tokio::test]
+async fn a_tab_opened_in_the_background_is_woken_and_read() {
+    let h = harness(vec![
+        tool("list_tabs", json!({})),
+        tool("read_page", json!({"tab": "t2"})),
+        say("The guide says brew [b1]."),
+    ]);
+    h.page.lock().facts.get_mut("tab-2").unwrap().sleeping = true;
+    h.ask("What does my other tab say?", true).await.unwrap();
+    h.settle().await;
+    let (read, is_error) = h.tool_result(2);
+    assert!(!is_error && read.contains("brew install kite"), "{read}");
+    assert!(h.tabs.0.lock().unwrap().contains(&"wake tab-2".to_owned()));
+}
+
+#[tokio::test]
+async fn an_unreadable_attached_page_is_named_by_its_handle() {
+    let h = harness(vec![say("It is still loading.")]);
+    h.page.lock().readouts.remove(TAB);
+    h.ask("Can you read this page?", true).await.unwrap();
+    h.settle().await;
+    assert!(h
+        .request_text(0)
+        .contains("(The attached page t1 · news.ycombinator.com could not be read just now.)"));
+    assert!(h
+        .notes
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|line| line.contains("read failed fault=Unreadable")));
 }
 
 #[tokio::test]

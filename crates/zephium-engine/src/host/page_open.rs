@@ -328,8 +328,75 @@ pub(super) fn filter_windows_context_menu(
             return false;
         }
     }
+    // The page's own items stay even if Scroll to Top cannot join them.
+    let _ = add_windows_scroll_to_top(controller, &items);
     navigation.matches_activity(activity)
         && windows_context_foreground(permit, presented, controller)
+}
+/// Adds Scroll to Top after the menu's Reload, or at the end of a menu that
+/// has none (one opened on a link, an image or selected text).
+#[cfg(target_os = "windows")]
+fn add_windows_scroll_to_top(
+    controller: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Controller,
+    items: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2ContextMenuItemCollection,
+) -> windows::core::Result<()> {
+    use webview2_com::{
+        CustomItemSelectedEventHandler, ExecuteScriptCompletedHandler,
+        Microsoft::Web::WebView2::Win32::{
+            ICoreWebView2Environment9, ICoreWebView2_2,
+            COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND,
+            COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR,
+        },
+    };
+    use windows::core::{Interface, HSTRING, PWSTR};
+    use windows::Win32::System::Com::CoTaskMemFree;
+    let core = unsafe { controller.CoreWebView2() }?;
+    let environment = unsafe { core.cast::<ICoreWebView2_2>()?.Environment() }?
+        .cast::<ICoreWebView2Environment9>()?;
+    let item = unsafe {
+        environment.CreateContextMenuItem(
+            &HSTRING::from(crate::scroll_to_top_label()),
+            None,
+            COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND,
+        )
+    }?;
+    let selected = CustomItemSelectedEventHandler::create(Box::new(move |_, _| {
+        let done = ExecuteScriptCompletedHandler::create(Box::new(|_, _| Ok(())));
+        // SAFETY: a fixed script on the STA-owned core.
+        unsafe { core.ExecuteScript(&HSTRING::from(super::SCROLL_TOP_JS), &done) }
+    }));
+    let mut token = 0;
+    unsafe { item.add_CustomItemSelected(&selected, &mut token) }?;
+    let mut count = 0;
+    unsafe { items.Count(&mut count) }?;
+    let reload = (0..count).find(|index| {
+        let Ok(existing) = (unsafe { items.GetValueAtIndex(*index) }) else {
+            return false;
+        };
+        let mut name = PWSTR::null();
+        let is_reload = unsafe { existing.Name(&mut name) }.is_ok()
+            && !name.is_null()
+            && unsafe { name.to_string() }.is_ok_and(|name| name == "reload");
+        unsafe { CoTaskMemFree(Some(name.0.cast())) };
+        is_reload
+    });
+    match reload {
+        Some(index) => unsafe { items.InsertValueAtIndex(index + 1, &item) },
+        None => {
+            if count > 0 {
+                let separator = unsafe {
+                    environment.CreateContextMenuItem(
+                        &HSTRING::new(),
+                        None,
+                        COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR,
+                    )
+                }?;
+                unsafe { items.InsertValueAtIndex(count, &separator) }?;
+                count += 1;
+            }
+            unsafe { items.InsertValueAtIndex(count, &item) }
+        }
+    }
 }
 #[cfg(any(target_os = "windows", test))]
 pub(super) fn windows_menu_item_allowed(name: &str) -> bool {
