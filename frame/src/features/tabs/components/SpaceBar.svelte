@@ -1,7 +1,7 @@
 <script lang="ts">
   import "$shared/ui/Menu/surface.css";
   import * as m from "$shared/i18n/messages";
-  import { Add01Icon, ArrowDown01Icon, CleanIcon, Moon02Icon } from "@hugeicons/core-free-icons";
+  import { Add01Icon, ArrowDown01Icon, Delete02Icon, Moon02Icon } from "@hugeicons/core-free-icons";
   import { tabs } from "$domain/tabs";
   import { uiCommands as ui } from "$domain/ui-commands";
   import Icon from "$shared/ui/Icon";
@@ -99,7 +99,7 @@
       class="space-action"
       title={m.space_clear_tabs()}
       aria-label={m.space_clear_tabs()}
-      onclick={tabs.clearSpace}><Icon icon={CleanIcon} size={15} /></button
+      onclick={tabs.clearSpace}><Icon icon={Delete02Icon} size={15} /></button
     >
     {@render extras?.()}
     <button
