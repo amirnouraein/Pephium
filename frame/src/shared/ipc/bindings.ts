@@ -322,15 +322,24 @@ export const commands = {
 	 */
 	chromeMenuPopup: (x: number | null, y: number | null, page: boolean, canSplit: boolean) => __TAURI_INVOKE<boolean>("chrome_menu_popup", { x, y, page, canSplit }),
 	extensionActionInvoke: (profileId: string, installId: string, runtimeGeneration: string, actionRevision: string, anchorX: number | null, anchorY: number | null, anchorWidth: number | null, anchorHeight: number | null) => __TAURI_INVOKE<OperationAdmission>("extension_action_invoke", { profileId, installId, runtimeGeneration, actionRevision, anchorX, anchorY, anchorWidth, anchorHeight }),
+	/**  The context menu of an extension's toolbar button, under the button. */
+	extensionActionMenu: (profileId: string, installId: string, runtimeGeneration: string, actionRevision: string, anchorX: number | null, anchorY: number | null, anchorWidth: number | null, anchorHeight: number | null) => __TAURI_INVOKE<OperationAdmission>("extension_action_menu", { profileId, installId, runtimeGeneration, actionRevision, anchorX, anchorY, anchorWidth, anchorHeight }),
 	/**
 	 *  Downloads and verifies the extension on the active store page, and
 	 *  returns what the user is asked to approve.
 	 */
 	webExtensionPrepare: (tabId: string) => typedError<WebExtensionReview, string>(__TAURI_INVOKE("web_extension_prepare", { tabId })),
+	/**
+	 *  What the install button on the Web Store listing in `tab_id` shows. A
+	 *  click on it arrives as `zephium:web-extension-store-click`.
+	 */
+	webExtensionStoreButton: (tabId: string, extensionId: string, state: WebExtensionStoreButtonState, label: string) => __TAURI_INVOKE<boolean>("web_extension_store_button", { tabId, extensionId, state, label }),
 	webExtensionConfirm: (id: string, reviewId: string) => typedError<null, string>(__TAURI_INVOKE("web_extension_confirm", { id, reviewId })),
 	webExtensionCancel: (reviewId: string) => __TAURI_INVOKE<void>("web_extension_cancel", { reviewId }),
 	webExtensionList: () => typedError<WebExtensionView[], string>(__TAURI_INVOKE("web_extension_list")),
 	webExtensionSetEnabled: (id: string, enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("web_extension_set_enabled", { id, enabled })),
+	/**  Puts the extension's button in the address field, or back in the tray. */
+	webExtensionSetPinned: (id: string, pinned: boolean) => typedError<null, string>(__TAURI_INVOKE("web_extension_set_pinned", { id, pinned })),
 	/**  Retries only the exact installation displayed in the Extensions page. */
 	webExtensionRetry: (profileId: string, installId: string) => typedError<null, string>(__TAURI_INVOKE("web_extension_retry", { profileId, installId })),
 	webExtensionUninstall: (id: string) => typedError<null, string>(__TAURI_INVOKE("web_extension_uninstall", { id })),
@@ -358,6 +367,8 @@ export const commands = {
 	version: string,
 	description: string,
 	warnings: string[],
+	/**  What this browser can't do for the extension, apart from its access. */
+	limitations: string[],
 	icon: string | null,
 	update: boolean,
 	/**  Installed from a file, so not checked against the Web Store. */
@@ -370,11 +381,6 @@ export const commands = {
 	 *  the user's approval.
 	 */
 	webExtensionReviewUpdate: (id: string) => typedError<WebExtensionReview, string>(__TAURI_INVOKE("web_extension_review_update", { id })),
-	/**
-	 *  A recommended extension's icon as a data URL, or `None` while the store
-	 *  can't be reached.
-	 */
-	webExtensionCatalogIcon: (token: string) => typedError<string | null, string>(__TAURI_INVOKE("web_extension_catalog_icon", { token })),
 	/**
 	 *  Reads only platform capability state. It never enumerates credentials,
 	 *  relying parties, or extension-owned vault data and never opens native UI.
@@ -727,6 +733,7 @@ export const events = {
 	tabChanged: makeEvent<TabChanged>("tab-changed"),
 	uiCommand: makeEvent<UiCommand>("ui-command"),
 	webExtensionAccessRequested: makeEvent<WebExtensionAccessRequested>("web-extension-access-requested"),
+	webExtensionStoreClicked: makeEvent<WebExtensionStoreClicked>("web-extension-store-clicked"),
 	workChanged: makeEvent<WorkChanged>("work-changed"),
 	workEnvironmentChanged: makeEvent<WorkEnvironmentChanged>("work-environment-changed"),
 	zephiumAccountChanged: makeEvent<AccountChanged>("zephium:account-changed"),
@@ -2943,7 +2950,7 @@ export type RuntimeSecurityAdvisory = {
  *  Non-fatal, process-local classification produced before native WebView
  *  construction. Hard admission failures never reach privileged chrome.
  */
-export type RuntimeSecurityAdvisoryKind = "review_overdue" | "update_recommended" | "unreviewed_runtime";
+export type RuntimeSecurityAdvisoryKind = "review_overdue" | "update_recommended" | "unreviewed_runtime" | "cleanup_overdue";
 
 /**
  *  Fixed destination of the recommended maintenance action. No page or
@@ -2972,7 +2979,7 @@ export type RuntimeStatus = {
 	 */
 	user_content_degraded_scope_count: number,
 	/**
-	 *  Canonically ordered closed-vocabulary set. Rust emits at most five
+	 *  Canonically ordered closed-vocabulary set. Rust emits at most six
 	 *  entries and privileged chrome must replace, never append, projections.
 	 */
 	security_advisories: RuntimeSecurityAdvisory[],
@@ -3544,11 +3551,26 @@ export type WebExtensionReview = {
 	version: string,
 	description: string,
 	warnings: string[],
+	/**  What this browser can't do for the extension, apart from its access. */
+	limitations: string[],
 	icon: string | null,
 	update: boolean,
 	/**  Installed from a file, so not checked against the Web Store. */
 	from_file: boolean,
 };
+
+export type WebExtensionStoreButtonState = "add" | "adding" | "remove";
+
+/**
+ *  A person clicked the install button the browser showed on the Web Store
+ *  listing in `tab_id`, which is still the active tab of the focused window.
+ */
+export type WebExtensionStoreClickView = {
+	tab_id: string,
+	extension_id: string,
+};
+
+export type WebExtensionStoreClicked = WebExtensionStoreClickView;
 
 export type WebExtensionView = {
 	profile_id: string,
@@ -3563,6 +3585,7 @@ export type WebExtensionView = {
 	state: string,
 	error: string | null,
 	warnings: string[],
+	limitations: string[],
 	/**  `all`, `click` or `sites`; meaningful only when `site_scoped`. */
 	access: string,
 	sites: string[],
@@ -3571,6 +3594,7 @@ export type WebExtensionView = {
 	has_options: boolean,
 	held_update: string | null,
 	sideloaded: boolean,
+	pinned: boolean,
 };
 
 /**

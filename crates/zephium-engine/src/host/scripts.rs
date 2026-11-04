@@ -718,8 +718,7 @@ struct ProtectedScriptSpec {
 }
 
 const PROTECTED_SCRIPT_SPECS: [ProtectedScriptSpec;
-    4 + cfg!(not(target_os = "macos")) as usize
-        + cfg!(any(target_os = "macos", target_os = "windows")) as usize] = [
+    4 + cfg!(not(target_os = "macos")) as usize + cfg!(target_os = "windows") as usize] = [
     ProtectedScriptSpec {
         id: 6,
         source: CONTENT_STYLE_JS,
@@ -748,7 +747,8 @@ const PROTECTED_SCRIPT_SPECS: [ProtectedScriptSpec;
         source: crate::PAGE_PRINT_DENY_SCRIPT,
         all_frames: true,
     },
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    // macOS runs the store script in a world of its own, from the view.
+    #[cfg(target_os = "windows")]
     ProtectedScriptSpec {
         // The desktop's global page style already owns builtin ID 4.
         id: 5,

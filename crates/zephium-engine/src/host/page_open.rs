@@ -35,6 +35,8 @@ impl EngineHost {
                 &view.view,
                 &policy,
                 &view.site_scope.pause,
+                &view.site_scope.protection,
+                &view.site_scope.top_document,
             ) else {
                 return false;
             };

@@ -20,8 +20,11 @@ soon as the empty native policy is acknowledged; the UI never describes that
 policy as active protection. Updates retain the installed policy throughout.
 Already issued requests cannot be blocked retroactively.
 
-Scriptlets, procedural cosmetics, resource replacement, response-CSP mutation,
-URL-parameter rewriting, and YouTube-specific ad blocking are out of scope.
+Procedural cosmetics, resource replacement, response-CSP mutation and
+URL-parameter rewriting are out of scope. On macOS 15.4+ and Windows,
+`##+js(...)` rules run scriptlets from a library built into the app, never
+fetched; lists only choose the scriptlet and its arguments, and only uBlock
+Origin's two lists may call `trusted-*` ones.
 There is no proxy, TLS interception, local root certificate, or replacement
 HTTP stack. Supported syntax and losses are reported, not advertised as complete
 uBlock/Safari parity. The pinned adblock-rust fork is documented in
@@ -56,26 +59,36 @@ local startup artifact does not weaken worker retirement barriers.
 
 ## Official list maintenance
 
-Desktop builds use these fixed publisher endpoints:
+Desktop builds use these fixed publisher endpoints, in catalog order:
 
-- `https://easylist.to/easylist/easylist.txt`
-- `https://easylist.to/easylist/easyprivacy.txt`
+| List | Endpoint | License |
+| --- | --- | --- |
+| EasyList | `https://easylist.to/easylist/easylist.txt` | CC-BY-SA-3.0 |
+| EasyPrivacy | `https://easylist.to/easylist/easyprivacy.txt` | CC-BY-SA-3.0 |
+| uBlock filters | `https://ublockorigin.github.io/uAssets/filters/filters.txt` | GPL-3.0-only |
+| uBlock filters – Quick fixes | `https://ublockorigin.github.io/uAssets/filters/quick-fixes.txt` | GPL-3.0-only |
 
 HTTPS authenticates the server/transport; these downloads do not have an
-independent publisher signature. The app trusts the official publisher's site.
-The signed application also embeds a licensed offline EasyList/EasyPrivacy pair.
+independent publisher signature. The app trusts the official publishers' sites.
+The signed application also embeds the same four lists as a licensed offline
+seed. EasyList lists carry a numeric `Version` and upstream `Commit`; the uBlock
+Origin lists have neither and are versioned by the UTC minute of their
+`Last modified` header; the seed also records that header in full, so a copy
+changed within the same minute is accepted only when it was modified later.
+Their `!#include` lines are not followed.
 Optional TUF support remains independently tested, but no TUF publication
 infrastructure or signing keys are required by this release design.
 
 The updater uses system TLS verification, bounded streaming, no redirects,
 cookies or referrer, conditional ETag/Last-Modified requests, and one worker.
-It persists a due time approximately 24–30 hours after a successful check,
-respects longer server backoff, and performs no startup fetch while fresh.
+It persists a due time approximately 24–30 hours after a successful check;
+quick fixes follow their own `Expires` header (8 hours today) within 4–24
+hours. It respects longer server backoff, and performs no startup fetch while fresh.
 Manual refresh coalesces and is rate-limited. Existing application maintenance
 triggers due work; the blocker adds no idle polling timer.
 
 Headers, titles, URLs, lengths, hashes, rule counts and suspicious shrinkage are
-validated. Both sources form one candidate. The worker prepares the policy,
+validated. The four lists form one candidate. The worker prepares the policy,
 then macOS preflights the native network artifact before durable
 activation. Static cosmetic syntax and budgets are validated by the compiler. Windows prepares its frozen matcher before publication. Failed
 candidates leave the working policy installed. Current, previous and bundled
@@ -84,11 +97,29 @@ streaming buffer. A 304 is accepted only for the exact verified retained bytes
 and validators actually sent; otherwise one unconditional retry is allowed.
 Unchanged source bytes avoid policy recompilation.
 
-The current bundled pair is **202609300903**, 3,568,061 uncompressed bytes.
+A rejected candidate is remembered. A list whose download is a copy that
+candidate held keeps its current copy, so the other lists' updates go through;
+that holds for an older copy too, so a revert to rejected bytes is never staged
+again. The rejection is forgotten only after a refresh that checked every list.
+Known limit: the candidate is rejected as a whole, so every list that changed
+in it is withheld, including those that compiled fine. Each recovers when its
+publisher next changes it (quick fixes within about 8 hours, the others daily).
+
+The current bundled seed is **202611021408**, 4,073,004 uncompressed bytes.
 `assets/blocker-seed/v1/` contains exact compressed/raw identities, upstream
-attribution, license, and deterministic quality report. Release tooling and SBOM
-checks bind those artifacts to the shipping graph (`release-bundle` plus
-`official-https`), rather than claiming downloaded bytes are release-signed.
+attribution, both license texts (`LICENSE-CC-BY-SA-3.0.txt`,
+`LICENSE-GPL-3.0.txt`), and a deterministic quality report. The seed is dated by
+its oldest list, which the release gate allows to be at most 30 days old.
+Release tooling and SBOM checks bind those artifacts to the shipping graph
+(`release-bundle` plus `official-https`), rather than claiming downloaded bytes
+are release-signed. Refresh the seed with:
+
+```sh
+cargo xtask update-blocker-seed --easylist PATH --easyprivacy PATH \
+  --ublock-filters PATH --ublock-quick-fixes PATH \
+  --license assets/blocker-seed/v1/LICENSE-CC-BY-SA-3.0.txt \
+  --gpl-license assets/blocker-seed/v1/LICENSE-GPL-3.0.txt
+```
 
 ## macOS
 
@@ -124,11 +155,26 @@ contexts, service workers and already-running shared-worker requests are not
 intercepted by the current adapter. Registering environment worker requests on
 every tab would multiply synchronous work; they need a future environment owner.
 
-WebView2 does not supply an exact initiating frame URL in this callback. The
-matcher therefore applies source-independent decisions and conservatively
-allows requests where an unknown-attribution exception could matter. It never
-substitutes the mutable top-level URL or invents third-party classification.
-The report records this coverage loss separately from resource-type losses.
+WebView2 does not supply the initiating frame URL in this callback. Each view
+instead keeps the HTTP(S) main document it last committed, and every request it
+filters is matched with that document as its source: `$domain` options and
+first/third-party classification are judged against the main document, not the
+frame. A frame's requests are therefore third party to the page that embeds it
+whenever their host's site differs from the page's.
+
+The source changes at commit (WebView2 `ContentLoading`, which runs before the
+new document's scripts), not when a navigation starts. The old document keeps
+its own source until then, so its requests during the navigation are not judged
+against the incoming site, and a redirect, failed navigation or download changes
+nothing. Requests it sends while unloading, such as beacons, can arrive after
+the commit and are judged against the new document. A request the new document
+makes before its commit, such as an Early Hints preload, is judged against the
+previous document. Before a view's first HTTP(S) commit, and after a commit to
+any other scheme or to a URL over 32 KiB, matching is source-independent:
+domain- and party-scoped rules are skipped, and a block that such an exception
+could cancel fails open. Service- and shared-worker requests are not
+intercepted, so they have no main-document source either. The report still
+counts attribution-sensitive rules separately from resource-type losses.
 
 Document-created fixed scripts and constructed sheets provide main-document
 cosmetics and personal hides. Live updates use `ExecuteScript`, with exact
@@ -209,6 +255,33 @@ oldest first. Only the focused profile is queryable. New Tab queries on show,
 tab changes, calendar-day changes and visibility restoration; statistics add no polling timer or event
 stream. Unavailable statistics produce an error, never an invented zero.
 
+## Zephium's own rules
+
+`crates/zephium-blocker/src/zephium_rules.txt` is a short filter list of our
+own, reviewed and shipped with the app, compiled after every catalog's lists;
+its digest is part of the artifact's cache key. On Windows its site-scoped
+exceptions are judged against the view's main document, like every rule there
+(see above); before a view's first HTTP(S) commit they fail open on any site,
+as any site-scoped exception does there. It holds exceptions only, never
+blocks (a test enforces this), for breakage the downloaded lists do not fix
+yet. Each rule has a comment naming its site, the evidence and the date, and is
+reported upstream when it applies there.
+
+- Ad recovery: some sites (allrecipes, simplyrecipes, people, bild, mirror,
+  tomsguide) probe AdSense's loader and, when it is blocked, re-serve the same
+  ads through rotating proxy hosts: 40 to 710 requests to those hosts in 45
+  seconds of one article, against 2 or 3 with protection off. Blocking the
+  recovery instead replaces the page with an "allow ads" wall. Allowing that
+  one file on those sites and their subdomains keeps the recovery idle while
+  the ads stay blocked. In Zephium on macOS with the fix (3 runs each), protection on
+  used 4.4 s of CPU and 123 requests on allrecipes against 16.2 s and 301 off,
+  and 2.4 s and 89 requests on simplyrecipes against 8.6 s and 299.
+- Ad recovery, second probe: mirror and tomsguide also fetch criteo's prebid
+  tag beside the loader. EasyPrivacy blocks it as third party, which starts the
+  same recovery: 36 to 58 requests to the proxy hosts in 16 seconds of the home
+  page in Zephium on Windows, against 2 or 3 with the exception. The exception
+  allows only that fetch on those two sites; the tag never loads as a script.
+
 ## Budgets and evidence
 
 | Resource | Ceiling |
@@ -217,7 +290,7 @@ stream. Unavailable statistics produce an error, never an invented zero.
 | Source count / candidate rules | 32 / 250,000 |
 | Physical line / lines | 64 KiB / 500,000 |
 | WebKit rules / JSON | 140,000 / 32 MiB |
-| Runtime regexes / raw pattern bytes | 1,152 / 2 MiB |
+| Runtime regexes / raw pattern bytes | 1,536 / 2 MiB |
 | Filter evaluations per request | 256 |
 | Request/source URL | 32 KiB each |
 | Cosmetic rules / portable policy | 50,000 / 16 MiB |
@@ -239,6 +312,74 @@ Child-frame cosmetic delivery is no longer enabled. Native QA also caught and
 fixed stale site controls after navigation: site identity/readiness now participate
 in status deduplication and focused tab updates publish that status.
 No test result claims Windows runtime, installer, battery or broad-web coverage.
+
+## YouTube
+
+uBlock Origin's `set` rules remove the pre-roll ad data from the watch page, so
+no pre-roll plays, but the video still starts later than in Brave. Measured on
+2026-11-04 with QA builds, 5 videos × 3 runs per browser, mean ± sd:
+
+| | Zephium | Brave |
+| --- | --- | --- |
+| macOS start ms | 8871 ± 6078 | 3831 ± 5339 |
+| macOS stall ms | 7200 ± 5805 | 2083 ± 5245 |
+| Windows start ms | 11308 ± 5403 | 4036 ± 3764 |
+| Windows stall ms | 7650 ± 5438 | 1567 ± 3521 |
+
+The stall is the player waiting for its first content media. Both browsers are
+served the ad data in the page and SABR streaming. On macOS, YouTube's client
+under WebKit requests neither of its ad probes
+(`static.doubleclick.net/instream/ad_status.js`,
+`googleads.g.doubleclick.net/pagead/id`) nor a second `/youtubei/v1/player`,
+with protection on or off, and the hold is timed by the server: with the ad
+left in, muted and played at 16×, content still arrived about the ad's length
+after it began. uBlock Origin's rule that rewrites YouTube's page script did not
+shorten the stall on either platform.
+
+## Rules WebKit never needed
+
+WebKit turns a content rule list into automata and runs every one of them on
+every resource load. Rules without `.*` share a few large automata; each rule
+with `.*` gets one of its own, so the list's ~860 wildcard block rules carry
+most of its per-load cost. `crates/zephium-blocker/src/webkit_pruned.txt` lists
+the wildcard block rules a recorded page corpus never matched, and the WebKit
+compiler leaves them out. The compile report counts them as pruned, not as
+unsupported.
+
+- A rule whose only `.*` comes from a trailing `^`, `x([^A-Za-z0-9_.%-].*)?$`,
+  is emitted as two rules without one, `x$` and `x[^A-Za-z0-9_.%-]`, which match
+  the same URLs, so it gets no automaton of its own and is never pruned.
+- Only block rules with `.*` are pruned; exceptions never are. Each entry is the
+  SHA-256 of one rule exactly as emitted for WebKit, one per line, sorted, with
+  no rule text. A new upstream rule, or an edit that changes the emitted rule,
+  is kept until the next refresh. An edit that only changes letter case emits
+  the same rule, since url-filters are case-insensitive, and stays pruned.
+- The Windows runtime matcher has no such per-rule cost and compiles every rule.
+- The corpus covers the benchmark sites, YouTube, ad-heavy news and betting
+  sites, the top sites, pages where exceptions apply
+  (`scripts/blocker-corpus/pages/`), and the hosts the wildcard rules name.
+  Adult sites are left out of every list.
+- A rule is listed only when the replay could test it and nothing matched. A
+  load WebKit did not check as its recorded type keeps every rule of that type
+  whose url-filter matches it. Each visit is recorded as ok, failed, timeout or
+  late; a rule that applies only on sites whose page did not load (an
+  `if-domain` rule, or a first-party rule for the host it names) is kept. A
+  replay batch that never reports back, or a recorded load with no replay row,
+  fails the pass.
+
+Refreshing the list is a release step, not CI: it loads hundreds of real pages
+in WebKit with the network on (about five hours), then replays every recorded
+load against the bundled lists through a local listener that answers nothing.
+After `cargo xtask update-blocker-seed`, on an otherwise idle Mac:
+
+```bash
+scripts/blocker-corpus/run.sh target/blocker-corpus
+```
+
+Review the diff of `webkit_pruned.txt` (its header records the corpus, the
+replay, the visits that loaded and the rules kept for untested loads), then run `cargo xtask update-blocker-seed` again with the same lists
+so `compile-report.json` records the pruned count, and
+`cargo xtask check-blocker-seed`.
 
 Use `cargo xtask check-blocker-seed` for exact bundled artifacts; blocker
 property/fuzz/fork-contract tests for compiler boundaries; and

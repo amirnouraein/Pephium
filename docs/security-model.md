@@ -184,7 +184,13 @@ Any change that breaks one of these invariants must fail review and release:
    protocol. Page script cannot invoke Zephium commands.
 2. `main` and `panel` are constructed at exact `about:blank`, receive all mandatory
    native hardening, and only then navigate to the bundled application origin. Debug
-   builds additionally allow the exact local Vite origin. Other navigation is rejected.
+   builds additionally allow the exact local Vite origin. A bundled Windows first run
+   serves onboarding from its own custom-protocol host, `zephium-onboarding.localhost`,
+   which only `main` may load, and only until handover. It serves that exact document and
+   the bundle's non-page files, the same bytes `main` already reads from its app origin,
+   and no other page. The browser that replaces it is then a cross-site navigation;
+   this is a memory measure, not an isolation boundary, and WebView2 does not guarantee
+   a new renderer process for it. Other navigation is rejected.
    On Windows the same policy is installed on WebView2's separate subframe-navigation
    event, and every request to launch an OS-registered URI scheme is cancelled.
 3. Application-requested tab navigation is checked in core and again before the native
@@ -663,21 +669,73 @@ so a correctly marked generation whose volatile key is absent has crossed a rebo
 boundary and may be reclaimed without inferring process death from filesystem access.
 Pre-provenance Zephium directories are first bounded, marked, and classified as
 same-boot; they cannot be reclaimed until a later reboot. Malformed or unowned objects
-are never adopted or deleted. Startup is bounded to 32 same-boot generations, 128 total
-including the new allocation, 2 GiB of quarantined logical file bytes, and 250,000
-inspected entries. Saturation fails with an explicit full-Windows-restart remediation;
-opaque data that remains after reboot requires the runtime directory to be moved aside
-manually while Zephium is closed. Successful exact cleanup removes its volatile subkey,
-so clean relaunches do not grow HKCU for the rest of the boot.
+are never adopted or deleted. Successful exact cleanup removes its volatile subkey, so
+clean relaunches do not grow HKCU for the rest of the boot.
+
+Each generation also keeps a versioned, append-only process record of every WebView2
+browser process its data belongs to. Before anything that may start a browser there, the
+record gains a `pending` entry; once that browser is recorded, its id and creation time
+and a `resolved` entry follow. The privileged root expects both of its browsers when
+it is prepared; the private root expects one each time a private browser may start:
+for a new environment, and for a reused one whose browser has exited. A same-boot
+generation whose run never proved its exit is reclaimed by the next launch, before any
+environment or view exists, only when that record proves it safe. A recorded process
+is gone only when its id names no process at all, or names one created at another
+time; a process that cannot be opened or queried for any other reason is never taken
+for gone, and keeps the generation. If every recorded process is gone, the data is
+deleted. A recorded process that still runs is an orphan of a dead run, because the
+exclusive root lease means no live Zephium instance owns anything in that root. If it
+is an `msedgewebview2.exe`, every one of its direct child processes created after it
+is checked first: if the children cannot be listed, or one is not WebView2, cannot be
+opened to be ended, or does not itself name the browser as its parent, nothing is ended
+and the generation stays until reboot. The browser stays open while its children are
+checked, so its id cannot be reused meanwhile. Otherwise all of them are ended, and the
+data is deleted once every exit is proven within two seconds and a fresh listing shows
+no child of the browser still running. Ending is not all or nothing once it starts:
+a process that does not exit in time keeps the generation until reboot, though the
+others may already be gone. A generation holding nothing but its own marker and a whole
+record with nothing pending and no browser is deleted outright. Every other generation
+keeps the reboot-only rule: one from a build that predates the record, one whose record
+is missing, still has a `pending` entry or is malformed in any way, including a torn
+last line, and one whose record was invalidated. A browser in any of those may still
+be starting with no files of its own yet. A boot key whose invalidation mark cannot
+be read keeps its generation, reported as unchecked. Any failure to expect or record
+a browser, or to confirm it is outside the private root, invalidates the record: it
+is marked on the generation's volatile boot registry key first, where a record file
+that cannot be changed cannot contradict it, and the file is then removed or made
+unreadable. If neither holds when a browser is expected, a private window fails to
+open; privileged chrome still starts, and its generation may be cleared at the next
+same-boot launch. Each outcome is logged as one line.
+
+Startup budgets are 32 same-boot generations, 128 total, 2 GiB of quarantined logical
+file bytes, and 250,000 inspected entries. A budget never blocks a launch. Over a budget,
+or when a leftover cannot be inspected, removed or recognised, has no complete record,
+or keeps an orphan that cannot be ended, that leftover stays in place and the launch
+goes ahead with only its own new generation, logging the overdue cleanup and its
+reason. Privileged chrome receives the closed `cleanup_overdue` advisory, as it does
+when one of its own browsers starts uncovered by the record. It asks for a restart,
+names the manual step below for data a restart cannot clear, and carries no path or
+reason. Opaque data that remains after reboot requires the runtime directory to be
+moved aside manually while Zephium is closed.
+
+On macOS, a private window's ad blocker scriptlets also touch disk. WebKit loads a
+WebExtension only from files, so the program a private profile runs, with the sites
+paused in that private profile and no others, is written to
+`private-scriptlets/<profile>` below the engine's data root, readable by its owner
+alone. It exists only while that private profile lives: the profile's files are removed
+when its data is erased, the directory is emptied when the engine shuts down and again
+when it starts, so a crash leaves them until the next launch. Normal profiles' packages
+are kept apart and never shared with a private one.
 
 Separate UDFs cost an additional WebView2 browser session/process set and must remain in
 resource benchmarks. Consequently, "incognito never writes a byte to disk" is **not** a
-guarantee on Windows. Crash, power loss, swap, filesystem snapshots, and engine defects
-remain relevant to private data on every OS. Windows does not provide the Unix directory
-fsync durability used by Zephium's deletion journal. The cross-restart completed
-tombstone prevents the application from forgetting cleanup authorization after a single
-acknowledged unlink, but packaged NTFS power-cut erasure testing remains a release gate
-rather than an asserted guarantee.
+guarantee on Windows or, for a private window's scriptlet program, on macOS. Crash,
+power loss, swap, filesystem snapshots, and engine defects remain relevant to private
+data on every OS. Windows does not provide the Unix directory fsync durability used by
+Zephium's deletion journal. The cross-restart completed tombstone prevents the
+application from forgetting cleanup authorization after a single acknowledged unlink,
+but packaged NTFS power-cut erasure testing remains a release gate rather than an
+asserted guarantee.
 
 The engine now exposes a narrow, asynchronous profile-retirement primitive. It
 tombstones the profile before teardown, rejects later view/navigation/spare work, drops
@@ -1003,10 +1061,11 @@ eight seconds for native teardown. Windows spends at most five seconds of that b
 on its internal whole-process-group proof before bounded private-root cleanup. A
 negative result or timeout is logged and permits forced process exit with a non-zero
 status; the sealed actor never resumes. On Windows, a failed cleanup leaves that
-generation quarantined. A later startup never reuses it: the shared bounded generation
-manager reclaims only exact marked prior-boot data, baselines legacy data for one reboot,
-and keeps same-boot or opaque state quarantined. Hitting a crash-loop budget produces a
-recoverable full-Windows-restart instruction instead of an irreversible assertion.
+generation quarantined. A later startup never reuses it. The shared bounded generation
+manager reclaims exact marked prior-boot data, and same-boot data once its recorded
+browser processes are proven gone or have been ended. It baselines legacy data for one
+reboot and keeps unrecorded or opaque state quarantined. A crash-loop budget never stops
+a launch; it is logged as overdue cleanup.
 Store worker queues are also bounded. Page-controlled history growth and extraction
 results are capped. These are denial-of-service controls, not proof that arbitrary web
 pages cannot exhaust an engine renderer.
@@ -1039,9 +1098,10 @@ policies; they must not restore a generic fetch capability for page-controlled U
 
 **Native network blocker (release seed active; TUF unprovisioned).** The tree contains a
 bounded authenticated source updater, network-rule compiler, persistent caches,
-coordinator, and native enforcement adapters. The desktop embeds exact immutable EasyList
-and EasyPrivacy snapshots whose compressed/raw bytes, upstream revisions, approved
-CC-BY-SA-3.0 metadata, and compiler reports are authenticated by the signed application
+coordinator, and native enforcement adapters. The desktop embeds exact immutable EasyList,
+EasyPrivacy, uBlock filters and uBlock quick-fixes snapshots whose compressed/raw bytes,
+upstream revisions, approved CC-BY-SA-3.0 or GPL-3.0-only metadata, and compiler reports
+are authenticated by the signed application
 release. It deliberately embeds no production TUF root or repository origins/identity, so
 bundled mode performs no source-network request and exposes distinct `release_bundle`
 provenance. Profile preferences remain disabled by default. Disabled profiles install an
@@ -1061,10 +1121,14 @@ precompiled frozen matcher to document-sourced WebView2 request contexts. Servic
 shared-worker requests remain unsupported until one profile/environment owner can avoid
 WebView2's per-view callback fanout. The synchronous callback
 performs no I/O or actor dispatch and fails open on malformed/oversized native data, lock
-contention, matcher failure, or the per-request filter-evaluation ceiling. Because WebView2
-does not supply the exact initiating frame URL, only source-independent blocks are applied;
-a potentially applicable source-sensitive exception makes a normal generic block fail
-open. macOS and Linux install digest-exact
+contention, matcher failure, or the per-request filter-evaluation ceiling. WebView2 does
+not supply the initiating frame URL, so each request is matched against the view's
+last-committed HTTP(S) main document: domain and party options are judged against that
+page, never the frame. The source changes at commit, not at navigation start, so a
+document's requests during a navigation keep their own source; its unload-time
+requests can be judged against the next page. Without a committed HTTP(S) document,
+only source-independent blocks apply and a potentially applicable source-sensitive
+exception makes a normal generic block fail open. macOS and Linux install digest-exact
 native WebKit declarative filters and validate native cache identities. The application
 holds first raw navigation until native installation settles, retains a proved previous
 generation on replacement failure, and exposes only a trusted in-process typed status and
@@ -1075,8 +1139,8 @@ slot quarantined until its exact callback.
 
 The release-seed loader verifies deterministic gzip identity and performs bounded lazy
 inflation plus exact raw length/digest/header validation after a compiled-cache miss. It
-drops inflated source strings after compilation. EasyList's source-refresh timestamp is
-reported as advisory `source_refresh_due` for release-bundle provenance; it cannot
+drops inflated source strings after compilation. The catalog's earliest source-refresh
+time is reported as advisory `source_refresh_due` for release-bundle provenance; it cannot
 invalidate the signed release's immutable policy or degrade an exactly installed native
 generation. Bundles install the exact attribution notice and license legal text.
 
@@ -1393,7 +1457,8 @@ These inherited properties must not be overstated:
   terminal and prevents an empty in-memory map from being mistaken for native absence.
 - Before Tauri creates a view, the runtime version must parse as a stable four-component
   WebView2 version. The reviewed security floor and latest recommendation are
-  `156.0.4314.42`, published October 22, 2026. An older Stable runtime is admitted
+  `156.0.4314.56`, published October 29, 2026; the latest recommendation is
+  `156.0.4314.58`, published October 30. An older Stable runtime is admitted
   with an update-recommended advisory. A newer stable major receives
   an unreviewed-runtime advisory. Preview-channel and malformed strings are
   refused (exit 78 with a native alert).
@@ -1401,14 +1466,14 @@ These inherited properties must not be overstated:
   environment overrides that
   can replace runtime/UDF selection, append browser flags such as `--no-sandbox`, select
   another channel, or attach script debuggers. CI and release publication
-  expire this review after October 31, 2026; runtime reports an overdue-review
+  expire this review after November 9, 2026; runtime reports an overdue-review
   advisory instead. Per-view Environment7/UDF/runtime, Environment10, Settings7, and
   CoreWebView2_18 checks remain independent capability gates.
 - Microsoft acknowledged on July 14 that additional Chromium security fixes
   were not yet available in Edge/WebView2 Stable. Stable `150.0.4078.80`
   incorporated the update on July 16. Microsoft listed CVE-2026-85046 as
   exploited in the wild in Stable `152.0.4191.62` on September 2, then published
-  Stable security updates through `156.0.4314.42` on October 22.
+  Stable security updates through `156.0.4314.58` on October 30.
   Microsoft publishes no WebView2-specific per-CVE applicability matrix;
   Zephium therefore treats the shared runtime release as a conservative floor
   rather than claiming each listed CVE applies to WebView2. The October 2 review
@@ -1417,8 +1482,10 @@ These inherited properties must not be overstated:
   October 6 review raised them to `154.0.4258.62`. On October 6 Microsoft
   again acknowledged a pending Chromium security fix. The October 24 review
   found no such notice remaining and four later Stable security releases, and
-  raised both to `156.0.4314.42`, clearing the publication blocker. See
-  [the review evidence](windows-webview2-security-review-2026-10-24.md).
+  raised both to `156.0.4314.42`, clearing the publication blocker. The
+  November 2 review raised the floor to `156.0.4314.56`, the newest release
+  with Update Catalog packages, and the recommendation to `156.0.4314.58`. See
+  [the review evidence](windows-webview2-security-review-2026-11-02.md).
   The release gate preserves the
   historical notice and requires both a cleared blocker and a floor published
   after it, so changing a boolean cannot turn a known vendor patch gap into
@@ -1500,7 +1567,7 @@ These inherited properties must not be overstated:
   build differs from the loaded `com.apple.WebKit` framework build, starts with
   an update-recommended advisory. Newer major lines (macOS 28, Safari 28)
   receive an unreviewed-runtime advisory. The review expires for CI/release
-  after November 3, while runtime
+  after November 9, while runtime
   keeps starting and reports review age to privileged chrome.
 - Overlay configuration keeps Tao's allocated `TaoWindow` class and instance layout
   intact. Zephium does not use `object_setClass` to turn that live object into an
@@ -1556,12 +1623,12 @@ These inherited properties must not be overstated:
   context construction, before any WebView can launch a Web process. A rejected or
   disabled configuration therefore fails closed, but the public property is not an
   attestation of the confinement actually applied to a spawned process. The newest
-  stable release reviewed in this pass is 2.54.1 (October 2, a bug-fix release); the
+  stable release reviewed in this pass is 2.54.2 (October 23, a bug-fix release); the
   enforced 2.54.0 boundary is the first stable release fixed for WSA-2026-0006
   (September 29), and no later 2.52 release carries those fixes, so the reviewed
   line moved from 2.52 to 2.54. The official advisory index and release feed were
-  re-reviewed on October 4, 2026; 2.53.92 remains an odd-minor development
-  release. CI/release review expires after November 3, 2026; runtime reports that
+  re-reviewed on November 2, 2026; 2.53.92 remains an odd-minor development
+  release. CI/release review expires after November 9, 2026; runtime reports that
   expiry without disabling an otherwise admitted engine.
 - Both privileged WebViews request non-persistent contexts. Their native permission and
   file-chooser denial handlers must install successfully, and the native context is
@@ -1844,8 +1911,9 @@ The following are roadmap items or disabled backends, not current security guara
   guaranteed malware detection, and automatic transfer resumption;
 - Chrome/Firefox extension compatibility beyond the subset in
   `docs/extension-release-scope.md`;
-- continuously maintained online blocker sources or full EasyList semantics: the usable
-  network-only release seed is bundled, but production TUF trust is unprovisioned and
+- signed blocker-list publication or full filter-list semantics: the release seed is
+  bundled and the official lists update over HTTPS from their publishers, but TUF
+  publication is unprovisioned, so no list update carries a Zephium signature, and
   packaged enforcement/endurance proof is still a release gate;
 - an anti-phishing service, or any way past a certificate error for a public site;
 - rollback-resistant update metadata: the updater (`desktop/src/updates.rs`) verifies a

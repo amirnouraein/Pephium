@@ -214,6 +214,18 @@ impl EngineHost {
             if !spare.view.event_permit.allows_navigation(url) {
                 return;
             }
+            #[cfg(target_os = "windows")]
+            {
+                // The spare took the program current when it was built.
+                self.ensure_view_scriptlets(
+                    partition.profile(),
+                    &spare.view.view,
+                    &spare.view.scriptlet,
+                );
+                if !spare.view.event_permit.allows_navigation(url) {
+                    return;
+                }
+            }
             #[cfg(target_os = "macos")]
             {
                 // Prepare the real viewport while still hidden, before the first
@@ -669,6 +681,20 @@ impl EngineHost {
         if let Some(counter) = self.blocker_statistics.get(&partition.profile()) {
             site_scope.pause.set_statistics(counter.clone());
         }
+        {
+            let (sink, permit, id) = (self.sink.clone(), event_permit.clone(), id.clone());
+            site_scope.protection.on_change(move |report| {
+                permit.emit(
+                    &sink,
+                    EngineEvent::ContentProtectionChanged {
+                        id: id.get(),
+                        degraded: report.degraded,
+                        stranded_filters: u32::try_from(report.stranded_filters)
+                            .unwrap_or(u32::MAX),
+                    },
+                );
+            });
+        }
         let load_site_scope = site_scope.clone();
         #[cfg(target_os = "windows")]
         let navigation_site_scope = site_scope.clone();
@@ -926,6 +952,14 @@ impl EngineHost {
                     return None;
                 }
             };
+            if cached_environment.is_none()
+                && !super::profiles::expect_private_browser(&self.private_runtime, &path)
+            {
+                if report_failure {
+                    event_permit.emit(&self.sink, EngineEvent::ViewCreationFailed { id: id.get() });
+                }
+                return None;
+            }
             let builder = WebViewBuilder::new_with_web_context(
                 self.web_contexts
                     .entry(profile)
@@ -1003,6 +1037,8 @@ impl EngineHost {
                                 return None;
                             }
                         };
+                    self.scriptlets.attach_private(profile, &configuration);
+                    self.refresh_profile_scriptlets(profile);
                     use wry::WebViewBuilderExtMacos;
                     (
                         builder.with_webview_configuration(configuration),
@@ -1012,6 +1048,7 @@ impl EngineHost {
                 Partition::Default(profile) | Partition::Persistent(profile) => {
                     use wry::WebViewBuilderExtMacos;
                     let configuration = self.webext.configuration(profile, &self.sink);
+                    self.refresh_profile_scriptlets(profile);
                     if crate::platform::imp::proxy::apply(
                         &configuration,
                         crate::network::current().as_ref(),
@@ -1096,6 +1133,10 @@ impl EngineHost {
             // policy. Wry currently ignores this setting on WebKit platforms.
             .with_general_autofill_enabled(false)
             .with_navigation_handler(move |target| {
+                // WebKitGTK asks here for every frame, WebView2 only for the
+                // top (its frames count in FrameNavigationStarting); macOS
+                // asks the Apple handler below instead.
+                zephium_core::blocker::PageActivity::shared().note_navigation();
                 let admitted = navigation_permit.allows_navigation(&target)
                     && policy_navigation.admits_target(&target);
                 // WebView2 may ask here before LaunchingExternalUriScheme; the
@@ -1176,6 +1217,8 @@ impl EngineHost {
             let auth_tab = id.clone();
             let action_app_link = app_link.clone();
             builder = builder.with_apple_navigation_action_handler(move |target, action| {
+                // Wry calls only this handler when it is set, for every frame.
+                zephium_core::blocker::PageActivity::shared().note_navigation();
                 // A page's own srcdoc, data: and blob: frames (challenge and
                 // payment widgets, editors) load under WebKit's origin rules;
                 // browser policy governs what a tab itself may show.
@@ -1346,6 +1389,13 @@ impl EngineHost {
                 script.source.as_ref(),
                 !script.all_frames,
             );
+        }
+        #[cfg(all(
+            feature = "blocker-bench",
+            any(target_os = "macos", target_os = "windows")
+        ))]
+        for source in super::blocker_bench::preloads() {
+            builder = builder.with_initialization_script_for_main_only(source, true);
         }
         #[cfg(target_os = "macos")]
         {
@@ -1683,6 +1733,8 @@ impl EngineHost {
                     );
                 });
         }
+        // Held while this view's main frame loads; list updates wait for quiet.
+        let page_load = Cell::new(None::<zephium_core::blocker::ActivePageLoad>);
         builder = builder.with_navigation_event_handler(move |event| {
             #[cfg(any(target_os = "macos", target_os = "windows"))]
             if event.phase == wry::NavigationEventPhase::Committed && event.url != "about:blank" {
@@ -1722,6 +1774,9 @@ impl EngineHost {
                         &load_page_permission_pending,
                     );
                     if load_navigation.is_current(epoch) {
+                        page_load.set(Some(
+                            zephium_core::blocker::PageActivity::shared().begin_load(),
+                        ));
                         load_permit
                             .emit(&on_load, EngineEvent::LoadingChanged { id, loading: true });
                     }
@@ -1749,6 +1804,8 @@ impl EngineHost {
                         watch.committed();
                     }
                     load_site_scope.navigating(&event.url);
+                    load_site_scope.committed(&event.url);
+                    load_site_scope.protection.retry();
                     // This identity-bearing native commit, not URL equality or
                     // SourceChanged ordering, authorizes rendered-content
                     // attribution to the final redirect destination.
@@ -1767,6 +1824,7 @@ impl EngineHost {
                 }
                 NavigationTransition::Finished(epoch) => {
                     if load_navigation.is_current(epoch) {
+                        page_load.set(None);
                         load_permit
                             .emit(&on_load, EngineEvent::LoadingChanged { id, loading: false });
                         // Completion is a presentation signal, but it is not
@@ -1792,6 +1850,7 @@ impl EngineHost {
                     // The transition was current when accepted. End its
                     // loading state even when a provisional failure restored
                     // the still-visible previous committed document.
+                    page_load.set(None);
                     load_permit.emit(&on_load, EngineEvent::LoadingChanged { id, loading: false });
                     if let Some(request) = request {
                         load_permit.emit(&on_load, EngineEvent::NavigationFailed { id, request });
@@ -2153,7 +2212,25 @@ impl EngineHost {
         #[cfg(target_os = "macos")]
         crate::platform::macos::autofill::show_key_in_sign_in_fields(
             &crate::platform::imp::native_webview(&view),
+            partition.profile(),
         );
+        // Private windows run no extensions, so their pages carry no button.
+        #[cfg(target_os = "macos")]
+        let store_button = if matches!(partition, Partition::Ephemeral(_)) {
+            super::store_button::StoreButtonSlot::default()
+        } else {
+            let tab = id.clone();
+            super::store_button::StoreButtonSlot::native(
+                crate::platform::macos::store_button::StoreButton::install(
+                    &crate::platform::imp::native_webview(&view),
+                    move |message| {
+                        let tab = tab.get();
+                        let _ =
+                            super::try_with(move |host| host.store_button_message(tab, message));
+                    },
+                ),
+            )
+        };
         #[cfg(target_os = "windows")]
         let request_witness = crate::platform::imp::RequestWitness::install(
             wry::WebViewExtWindows::webview(&view),
@@ -2203,6 +2280,8 @@ impl EngineHost {
                 &view,
                 &content_policy,
                 &site_scope.pause,
+                &site_scope.protection,
+                &site_scope.top_document,
             ) {
                 Ok(registration) => registration,
                 Err(error) => {
@@ -2472,6 +2551,10 @@ impl EngineHost {
         // why an unstaged Linux warm spare remains disabled.
         #[cfg(not(all(unix, not(target_os = "macos"))))]
         let _ = view.set_visible(false);
+        #[cfg(target_os = "windows")]
+        let scriptlet = super::scriptlets::ViewScriptlet::default();
+        #[cfg(target_os = "windows")]
+        self.ensure_view_scriptlets(partition.profile(), &view, &scriptlet);
         if !event_permit.allows_navigation(url) {
             // WebView construction can pump WebView2 messages. Do not perform
             // the first content load after the outer generation was retired.
@@ -2548,6 +2631,8 @@ impl EngineHost {
             #[cfg(target_os = "windows")]
             request_witness,
             #[cfg(target_os = "windows")]
+            scriptlet,
+            #[cfg(target_os = "windows")]
             extension_window: Cell::new(None),
             #[cfg(target_os = "windows")]
             windows_final_discard: None,
@@ -2596,6 +2681,10 @@ impl EngineHost {
             #[cfg(target_os = "windows")]
             native_terminal_failure: self.native_terminal_failure.clone(),
             find: None,
+            #[cfg(target_os = "macos")]
+            store_button,
+            #[cfg(target_os = "windows")]
+            store_button: Default::default(),
             #[cfg(all(
                 feature = "agentic-browser",
                 any(target_os = "macos", target_os = "windows")
@@ -2728,6 +2817,7 @@ impl EngineHost {
             None
         };
         let existing_environment = self.environments.get(&profile).cloned();
+        let mut browser_running = false;
         if let Some(environment) = &existing_environment {
             if extensions_enabled
                 && startup
@@ -2759,6 +2849,14 @@ impl EngineHost {
             if !current && !prior_exit_settled {
                 return Err(WindowsProfileEnvironmentFailure::Busy);
             }
+            browser_running = current;
+        }
+        if super::profiles::bootstrap_starts_browser(
+            existing_environment.is_some(),
+            browser_running,
+        ) && !super::profiles::expect_private_browser(&self.private_runtime, &path)
+        {
+            return Err(WindowsProfileEnvironmentFailure::Construction);
         }
         let mut construction_resource = Some(
             self.native_resources

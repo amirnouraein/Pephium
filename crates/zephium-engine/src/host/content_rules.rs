@@ -89,7 +89,7 @@ impl EngineHost {
     #[cfg(not(target_os = "windows"))]
     fn validate_declarative_artifact(
         &mut self,
-        encoded: Arc<str>,
+        encoded: Arc<dyn zephium_core::blocker::DeclarativeRuleText>,
         digest: [u8; 32],
         completion: zephium_core::ports::engine::ContentRuleValidationCompletion,
     ) {
@@ -121,7 +121,11 @@ impl EngineHost {
     }
 
     #[cfg(not(target_os = "windows"))]
-    pub(super) fn queue_native_artifact(&mut self, encoded: Arc<str>, digest: [u8; 32]) -> bool {
+    pub(super) fn queue_native_artifact(
+        &mut self,
+        encoded: Arc<dyn zephium_core::blocker::DeclarativeRuleText>,
+        digest: [u8; 32],
+    ) -> bool {
         if self
             .active_declarative_content_policy_maintenance
             .as_ref()
@@ -950,8 +954,16 @@ impl EngineHost {
     }
 
     #[cfg(not(target_os = "windows"))]
+    pub(crate) fn retain_content_rule_cache_digests(&mut self, mut digests: Vec<[u8; 32]>) {
+        digests.truncate(4);
+        self.retained_cache_digests = digests;
+    }
+
+    #[cfg(not(target_os = "windows"))]
     fn is_content_rule_cache_digest_protected(&self, digest: &[u8; 32]) -> bool {
-        if self.preflight_cache_digests.contains(digest) {
+        if self.preflight_cache_digests.contains(digest)
+            || self.retained_cache_digests.contains(digest)
+        {
             return true;
         }
         if self.content_policies.values().any(|state| {
@@ -1089,12 +1101,11 @@ impl EngineHost {
                 digest: native_digest,
             });
             self.refresh_profile_document_styles(profile);
-            self.emit_content_policy_settlement(
-                profile,
-                generation,
-                ContentRuleSettlement::Applied { generation },
-            );
-            self.start_queued_content_policy(profile);
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            if self.wait_for_scriptlets(profile, generation) {
+                return;
+            }
+            self.settle_applied_content_policy(profile, generation);
             return;
         }
 
@@ -1115,6 +1126,8 @@ impl EngineHost {
                 view,
                 &native,
                 &view.site_scope.pause,
+                &view.site_scope.protection,
+                &view.site_scope.top_document,
             ) {
                 Ok(registration) => registrations.push((id, registration)),
                 Err(failure) => {
@@ -1144,6 +1157,8 @@ impl EngineHost {
                     &spare.view,
                     &native,
                     &spare.view.site_scope.pause,
+                    &spare.view.site_scope.protection,
+                    &spare.view.site_scope.top_document,
                 )
             })
             .transpose();
@@ -1324,6 +1339,20 @@ impl EngineHost {
             digest: native_digest,
         });
         self.refresh_profile_document_styles(profile);
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        if self.wait_for_scriptlets(profile, generation) {
+            return;
+        }
+        self.settle_applied_content_policy(profile, generation);
+    }
+
+    /// The applied generation's terminal settlement. It follows the profile's
+    /// scriptlet program, so views held for startup protection wait for both.
+    pub(super) fn settle_applied_content_policy(
+        &mut self,
+        profile: ProfileId,
+        generation: ContentPolicyGeneration,
+    ) {
         self.emit_content_policy_settlement(
             profile,
             generation,
@@ -1341,11 +1370,31 @@ impl EngineHost {
         spare: Option<crate::platform::imp::ContentPolicyRegistration>,
     ) -> bool {
         let mut clean = true;
-        for (_, registration) in registrations {
+        // A replacement published its state on its view; the cohort still
+        // installed there takes the view back.
+        for (id, registration) in registrations {
             clean &= registration.retire().is_ok();
+            #[cfg(target_os = "windows")]
+            if let Some(live) = self
+                .views
+                .get(&id)
+                .and_then(|view| view.content_policy_registration.as_ref())
+            {
+                live.republish();
+            }
+            #[cfg(not(target_os = "windows"))]
+            let _ = id;
         }
         if let Some(registration) = spare {
             clean &= registration.retire().is_ok();
+            #[cfg(target_os = "windows")]
+            if let Some(live) = self
+                .spare
+                .as_ref()
+                .and_then(|spare| spare.view.content_policy_registration.as_ref())
+            {
+                live.republish();
+            }
         }
         if !clean {
             self.fail_content_policy_retirement();
@@ -1398,6 +1447,11 @@ impl EngineHost {
         self.blocker_statistics.remove(&profile);
         for waiters in self.declarative_content_policy_compilations.values_mut() {
             waiters.retain(|(waiting_profile, _)| *waiting_profile != profile);
+        }
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        {
+            self.refresh_profile_scriptlets(profile);
+            self.scriptlets.forget(profile);
         }
     }
 
@@ -2321,7 +2375,7 @@ mod tests {
                 .expect("replacement lost its authoritative applied state");
         let settlement = applied
             + source[applied..]
-                .find("ContentRuleSettlement::Applied { generation }")
+                .find("self.settle_applied_content_policy(profile, generation);")
                 .expect("replacement lost its terminal applied settlement");
         assert!(
             cohort < swap && swap < applied && applied < settlement,

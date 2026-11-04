@@ -571,6 +571,8 @@ pub enum Command {
         runtime: ExtensionRuntimeInstance,
         revision: ExtensionActionRevision,
         anchor: ExtensionPopupAnchor,
+        /// Opens the action's context menu rather than clicking it.
+        menu: bool,
     },
     /// Browser-owned response to the exact currently projected foreground
     /// page request. Public composition wraps this in `Operation`.
@@ -623,6 +625,11 @@ pub enum Command {
     RemoveWebExtension {
         profile: ProfileId,
         extension: Box<zephium_core::ports::engine::WebExtensionLoad>,
+    },
+    /// What the install button on the Web Store listing in `tab` shows.
+    ShowStoreButton {
+        tab: ItemId,
+        button: zephium_core::ports::engine::StoreButton,
     },
     /// The profile an installation from `tab` would go to.
     ResolveWebExtensionTarget {
@@ -864,6 +871,12 @@ pub enum Command {
         profile: ProfileId,
         token: u64,
     },
+    /// The startup protection deadline for one profile: views held for its
+    /// enabled policy open without it from here on.
+    BlockerStartupDeadline {
+        profile: ProfileId,
+        token: u64,
+    },
     /// Bounded follow-up for an exact user-requested refresh or the reserved
     /// internal activation token. Ordinary refresh scheduling remains on the
     /// low-frequency maintenance heartbeat.
@@ -871,6 +884,9 @@ pub enum Command {
         operation: u64,
         attempt: u8,
     },
+    /// The catalog's update worker published a new status, such as a finished
+    /// download, so the catalog is maintained now rather than at the next tick.
+    BlockerCatalogChanged,
     /// One bounded-backoff retry for journal reconciliation, native erasure,
     /// or local SQLite finalization.
     ProfileDeletionRetry {

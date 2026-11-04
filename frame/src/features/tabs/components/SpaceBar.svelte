@@ -5,11 +5,14 @@
   import { tabs } from "$domain/tabs";
   import { uiCommands as ui } from "$domain/ui-commands";
   import Icon from "$shared/ui/Icon";
-  import { untrack } from "svelte";
+  import { untrack, type Snippet } from "svelte";
   import SpaceGlyph from "./SpaceGlyph.svelte";
   import SpaceFlowBody from "./SpaceFlowBody.svelte";
   import * as requests from "../lib/space-requests.svelte";
   import { SpaceFlow } from "../lib/space-flow.svelte";
+
+  /** What the browser sets beside the plus: pinned extensions. */
+  let { extras }: { extras?: Snippet } = $props();
 
   // The switcher loads the first time the chip is approached or opened, and
   // stays, so reopening is the panel's motion alone.
@@ -63,7 +66,8 @@
 <!--
   The head of the tab list names the space it holds: its name, with its mark
   when it has one, opens the switcher. Beside it, the space's tabs can be put
-  to sleep or its open tabs cleared, and the plus opens a tab in it.
+  to sleep or its open tabs cleared, pinned extensions sit, and the plus opens
+  a tab in it.
 -->
 <div class="space-bar" data-cascade data-under-panel style:--cascade={0} role="presentation">
   <button
@@ -82,27 +86,30 @@
     <span class="space-name">{flow.active?.name ?? ""}</span>
     <span class="space-chevron"><Icon icon={ArrowDown01Icon} size={12} strokeWidth={2} /></span>
   </button>
-  <button
-    type="button"
-    class="space-action space-suspend"
-    title={m.space_suspend_tabs()}
-    aria-label={m.space_suspend_tabs()}
-    onclick={tabs.suspendSpace}><Icon icon={Moon02Icon} size={15} /></button
-  >
-  <button
-    type="button"
-    class="space-action"
-    title={m.space_clear_tabs()}
-    aria-label={m.space_clear_tabs()}
-    onclick={tabs.clearSpace}><Icon icon={CleanIcon} size={15} /></button
-  >
-  <button
-    type="button"
-    class="space-action"
-    title={m.new_tab()}
-    aria-label={m.new_tab()}
-    onclick={tabs.open}><Icon icon={Add01Icon} size={16} /></button
-  >
+  <div class="space-end">
+    <button
+      type="button"
+      class="space-action"
+      title={m.space_suspend_tabs()}
+      aria-label={m.space_suspend_tabs()}
+      onclick={tabs.suspendSpace}><Icon icon={Moon02Icon} size={15} /></button
+    >
+    <button
+      type="button"
+      class="space-action"
+      title={m.space_clear_tabs()}
+      aria-label={m.space_clear_tabs()}
+      onclick={tabs.clearSpace}><Icon icon={CleanIcon} size={15} /></button
+    >
+    {@render extras?.()}
+    <button
+      type="button"
+      class="space-action"
+      title={m.new_tab()}
+      aria-label={m.new_tab()}
+      onclick={tabs.open}><Icon icon={Add01Icon} size={16} /></button
+    >
+  </div>
   <div
     bind:this={panel}
     class="ui-menu ui-disclosure-panel ui-popover space-panel sidebar-softens"
@@ -182,6 +189,14 @@
     rotate: 180deg;
   }
 
+  .space-end {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+    margin-inline-start: auto;
+  }
+
   .space-action {
     display: grid;
     flex: none;
@@ -198,11 +213,6 @@
       background-color var(--motion-fast) var(--ease-out),
       color var(--motion-fast) var(--ease-out),
       scale var(--motion-slow) var(--ease-spring);
-  }
-
-  /* The actions sit together at the end, after the space's name. */
-  .space-suspend {
-    margin-inline-start: auto;
   }
 
   .space-action:hover,
