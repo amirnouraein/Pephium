@@ -4161,6 +4161,7 @@ fn downloads_are_profile_scoped_and_recover_interrupted_native_ownership() {
         identity: None,
         writer: None,
         writer_released: false,
+        insecure: false,
     };
     assert!(matches!(
         hub.download_call(profile, DownloadStoreCall::Save(Box::new(record.clone()))),
@@ -4233,6 +4234,7 @@ fn clearing_downloads_forgets_finished_records_and_keeps_live_ones() {
         identity: None,
         writer: None,
         writer_released: false,
+        insecure: false,
     };
     let live = record(DownloadState::Pending);
     let finished = record(DownloadState::Cancelled);
@@ -4282,6 +4284,7 @@ fn clearing_downloads_since_keeps_older_and_live_records() {
         identity: None,
         writer: None,
         writer_released: false,
+        insecure: false,
     };
     let old = record(100, DownloadState::Cancelled);
     let recent = record(200, DownloadState::Cancelled);
