@@ -6,6 +6,7 @@ import { settle } from "$domain/operations";
 import { commands } from "$shared/ipc/bindings";
 import { events } from "$shared/ipc/native-events";
 import { TabProjectionModel } from "./tabs-model";
+import * as m from "$shared/i18n/messages";
 
 const model = new TabProjectionModel();
 let state = $state.raw<ItemsState>(model.value);
@@ -115,6 +116,30 @@ export function dispose() {
 export const open = () => void commands.tabsOpen();
 export const activate = (id: string) => void commands.tabsActivate(id);
 export const close = (id: string) => void commands.tabsClose(id);
+export const duplicate = (id: string) => void commands.tabsDuplicate(id);
+/** Takes an Essential or pinned tab back to the page it was kept at. */
+export const returnHome = (id: string) => void commands.tabsReturnHome(id);
+/** Unloaded until it is opened again: suspended, or slept for being idle. */
+export const asleep = (tab: TabView) => tab.availability?.state === "sleeping";
+
+/** What a tab is called to the person, saying when it is asleep. */
+export function label(tab: TabView) {
+  const title = tab.title || m.untitled_tab();
+  return asleep(tab) ? m.tab_sleeping_named({ title }) : title;
+}
+
+/** Shows `name` in place of the page title; an empty one gives it back. */
+export const rename = (id: string, name: string) => void commands.tabsRename(id, name);
+
+// The row whose name is being edited in place, after the tab menu's Rename.
+let renamingId = $state<string | null>(null);
+export const renaming = () => renamingId;
+export const stopRenaming = () => (renamingId = null);
+/** Closes the space's open tabs; pinned tabs and Essentials stay. */
+export const clearSpace = () => void commands.spaceClear();
+/** Unloads the space's tabs and Essentials but those on screen. Each stays
+ *  where it is and loads again when opened. */
+export const suspendSpace = () => void commands.spaceSuspend();
 /** The window's one tab, with nothing open in it yet. Closing it would only
  *  put another empty tab in its place, so it offers no close. */
 export const loneNewTab = (id: string) => {
@@ -172,6 +197,7 @@ function tabMenuContext(id: string, mediaOnly = false): TabMenuContext {
     page: (tab?.content ?? "web") === "web" && (tab?.url ?? null) !== null,
     can_split: canSplitWith(id),
     essential: state.nodes.some((node) => tabOf(node) === id && node.section === "favorites"),
+    pinned: state.nodes.some((node) => tabOf(node) === id && node.section === "pinned"),
     others: open.some((candidate) => candidate !== id),
     below: at >= 0 && at < open.length - 1,
     muted: tab?.audio?.muted ?? false,
@@ -195,6 +221,12 @@ export function openMediaMenu(id: string, x: number, y: number) {
 /** The browser interface's own menu; `page` says a web page is in front. */
 export function openChromeMenu(x: number, y: number, page: boolean) {
   void commands.chromeMenuPopup(x, y, page, canSplitActive());
+}
+
+/** Starts editing the name of the tab the menu was opened on. */
+export function renameMenuTarget() {
+  renamingId = menuTarget;
+  menuTarget = null;
 }
 
 export function copyMenuTargetLink(): Promise<boolean> {

@@ -720,6 +720,7 @@ impl ReaderState {
                 let Some((invocation, pending)) =
                     crate::page_reader::read::invocation(self.context, &url, id)
                 else {
+                    crate::page_reader::note(format_args!("reader: read failed at=invocation"));
                     done(Err(PageReadFailure::Unavailable));
                     finish();
                     return;
@@ -751,7 +752,12 @@ impl ReaderState {
                         Err(_) if committed_now() != Some(epoch) => {
                             Err(PageReadFailure::PageChanged)
                         }
-                        Err(failure) => Err(map_failure(&failure)),
+                        Err(failure) => {
+                            crate::page_reader::note(format_args!(
+                                "reader: read failed at=runtime failure={failure:?}"
+                            ));
+                            Err(map_failure(&failure))
+                        }
                     };
                     done(outcome);
                     finish();

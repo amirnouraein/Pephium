@@ -17,8 +17,8 @@ type Drop = {
 type Options = {
   /** The list whose direct rows reorder in place. */
   list: () => HTMLElement | undefined;
-  /** Whether this list reorders in place, and whether its rows are kept. */
-  reorder: () => { essential: boolean } | null;
+  /** Whether this list reorders in place, and where its rows belong. */
+  reorder: () => tabDrag.Destination | null;
   /** The region the list scrolls in, whose room past the last row is the end of it. */
   region?: () => HTMLElement | undefined;
   /** A drop anywhere but back into the list's own order. */
@@ -68,7 +68,7 @@ export class RowDrag {
   // A drop already committed, held where it was drawn until the reordered
   // list arrives.
   #landing: Reorder | null = null;
-  #essential = false;
+  #to: tabDrag.Destination = "today";
   #bounds: DOMRect | null = null;
   #slot = -1;
   #page = false;
@@ -103,7 +103,7 @@ export class RowDrag {
       this.#slot = -1;
       this.#page = false;
       const reorder = this.#options.reorder();
-      this.#essential = reorder?.essential ?? false;
+      this.#to = reorder ?? "today";
       this.#reorder = reorder
         ? Reorder.begin(
             this.#options.list(),
@@ -134,7 +134,7 @@ export class RowDrag {
     const dragged = this.#dragging;
     const id = this.#id;
     const reorder = this.#reorder;
-    const essential = this.#essential;
+    const to = this.#to;
     if (reorder && this.#frame !== 0) reorder.update(event.clientX, event.clientY);
     this.#release(event);
     this.#reset();
@@ -145,7 +145,7 @@ export class RowDrag {
     if (reorder && placed?.changed) {
       this.#landing?.clear();
       this.#landing = reorder;
-      void tabDrag.move(id, essential, placed.before).then(() => {
+      void tabDrag.place(id, to, placed.before).then(() => {
         if (this.#landing !== reorder) return;
         // Refused: slide home at once. Accepted: the reordered list is on
         // its way and lands the rows itself; if it never comes, slide home.

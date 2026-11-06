@@ -79,6 +79,14 @@ test("find next with the field closed picks up the last search", async () => {
   find.show(tab.id);
   await userEvent.type(screen.getByRole("searchbox"), "wiki");
   await vi.waitFor(() => expect(native.find).toHaveBeenLastCalledWith("wiki", true));
+
+  // Find again on an open field takes focus afresh and selects the text to replace.
+  const input = screen.container.querySelector<HTMLInputElement>("input[type=search]")!;
+  const refocused = vi.fn();
+  input.addEventListener("focus", refocused);
+  find.show(tab.id);
+  await vi.waitFor(() => expect(refocused).toHaveBeenCalled());
+  expect([input.selectionStart, input.selectionEnd]).toEqual([0, 4]);
   find.hide();
   find.step(true, tab.id);
   expect(native.find).toHaveBeenLastCalledWith("wiki", true);

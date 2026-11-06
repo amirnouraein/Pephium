@@ -50,29 +50,37 @@
 
   const drag = new RowDrag({
     list: () => list,
-    region: () => list?.closest<HTMLElement>("[data-tabs-drop]") ?? undefined,
-    // Only open tabs reorder in place; native places anything dropped in
-    // this list among them.
-    reorder: () => (variant === "list" && section === "today" ? { essential: false } : null),
+    // The open tabs end where the sidebar does; the pinned ones end at their
+    // last row, so a pinned tab let go below it joins the open tabs.
+    region: () =>
+      section === "today"
+        ? (list?.closest<HTMLElement>("[data-tabs-drop]") ?? undefined)
+        : undefined,
+    // Pinned and open tabs reorder in place; native places anything dropped
+    // in this list among them.
+    reorder: () =>
+      variant === "list" && (section === "today" || section === "pinned") ? section : null,
     drop: ({ id, x, y, over, before }) => {
+      const to: tabDrag.Destination | null = over?.closest("[data-essentials-drop]")
+        ? "essentials"
+        : over?.closest("[data-pinned-drop]")
+          ? "pinned"
+          : over?.closest("[data-tabs-drop]")
+            ? "today"
+            : null;
+      // A tab that cannot be kept goes back where it was.
+      if ((to === "essentials" || to === "pinned") && !tabDrag.keepable(id)) return;
       // A split's tabs share one row, so they never reorder in place; let go
       // anywhere in the sidebar and the tab leaves its split for there.
-      // A tab that cannot be kept goes back where it was.
-      if (over?.closest("[data-essentials-drop]") && !tabDrag.keepable(id)) return;
-      if (tabs.inSplit(id) && over?.closest("[data-essentials-drop], [data-tabs-drop]")) {
-        const essential = !!over.closest("[data-essentials-drop]");
-        void tabDrag.leaveSplit(id, essential || before ? { essential, before } : null);
+      if (tabs.inSplit(id) && to !== null) {
+        void tabDrag.leaveSplit(id, to !== "today" || before ? { to, before } : null);
         return;
       }
-      if (over?.closest("[data-essentials-drop]")) {
-        void tabDrag.move(id, true, before);
-        return;
-      }
-      // Dropped among the open tabs from anywhere else: it joins them there.
-      // Dropping onto a row does not pair the two; that is Split View's job,
-      // from the menu or by dropping onto the page.
-      if (over?.closest("[data-tabs-drop]") && section !== "today") {
-        void tabDrag.move(id, false, before);
+      // Dropped into another list: it joins that one there. Dropping onto a
+      // row does not pair the two; that is Split View's job, from the menu
+      // or by dropping onto the page.
+      if (to !== null && to !== section) {
+        void tabDrag.place(id, to, before);
         return;
       }
       tabs.dropTab(id, x, y);
@@ -144,6 +152,7 @@
   class={["tab-list", variant === "essentials" && "tab-list-flush"]}
   aria-label={label}
   hidden={entries.length === 0}
+  data-pinned-drop={section === "pinned" ? "" : undefined}
   data-close-buttons={preferences.value("tabs.close-button")}
 >
   <ul

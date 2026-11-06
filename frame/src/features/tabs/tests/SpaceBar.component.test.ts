@@ -18,6 +18,8 @@ const native = vi.hoisted(() => ({
   update: vi.fn(),
   remove: vi.fn(),
   reorder: vi.fn(),
+  clear: vi.fn(),
+  suspend: vi.fn(),
 }));
 
 vi.mock("$shared/ipc/bindings", async () => {
@@ -32,6 +34,8 @@ vi.mock("$shared/ipc/bindings", async () => {
     spacesUpdate: native.update.mockImplementation(ok),
     spacesDelete: native.remove.mockImplementation(ok),
     spacesReorder: native.reorder.mockImplementation(ok),
+    spaceClear: native.clear.mockImplementation(ok),
+    spaceSuspend: native.suspend.mockImplementation(ok),
     keymapEntries: async () => [],
   });
 });
@@ -96,7 +100,16 @@ test("the row names the space and its plus opens a tab, with no pager beside the
   await screen.getByRole("button", { name: "New tab", exact: true }).click();
   expect(native.open).toHaveBeenCalledOnce();
   expect(screen.container.querySelector(".space-dots, .space-dot")).toBeNull();
-  expect(screen.container.querySelectorAll(".space-bar button")).toHaveLength(2);
+  expect(screen.container.querySelectorAll(".space-bar button")).toHaveLength(4);
+});
+
+test("the row suspends the space's tabs and clears its open ones", async () => {
+  const screen = await mount();
+  await screen.getByRole("button", { name: "Suspend all tabs" }).click();
+  expect(native.suspend).toHaveBeenCalledOnce();
+  await screen.getByRole("button", { name: "Clear open tabs" }).click();
+  expect(native.clear).toHaveBeenCalledOnce();
+  expect(native.open).not.toHaveBeenCalled();
 });
 
 test("the switcher lists every space, checks the one shown and moves to another", async () => {

@@ -34,6 +34,8 @@ pub struct TabFacts {
     pub viewer: bool,
     /// The first load has not finished.
     pub loading: bool,
+    /// No live page: never shown since it opened, or put to sleep.
+    pub sleeping: bool,
     /// Changes on every committed navigation; reads and steps bind to it.
     pub epoch: u64,
 }
@@ -321,6 +323,8 @@ pub trait Tabs: Send + Sync {
     ) -> BoxFuture<'a, Option<String>>;
     /// Loads `url` in `tab`, as the address field would; false when refused.
     fn navigate(&self, profile: &ProfileId, tab: &str, url: &str) -> bool;
+    /// Loads a sleeping tab's page in the background, without moving focus.
+    fn wake(&self, profile: &ProfileId, tab: &str) -> bool;
     /// The person's own search engine's results address for `query`.
     fn search_url(&self, profile: &ProfileId, query: &str) -> Option<String>;
 }

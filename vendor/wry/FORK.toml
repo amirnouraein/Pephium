@@ -100,6 +100,10 @@ name = "optional aggregate content-rule load counts"
 paths = ["src/lib.rs", "src/wkwebview/mod.rs", "src/wkwebview/class/wry_navigation_delegate.rs"]
 
 [[patch_sets]]
+name = "page context menu items before it opens"
+paths = ["src/lib.rs", "src/wkwebview/mod.rs", "src/wkwebview/class/wry_web_view.rs"]
+
+[[patch_sets]]
 name = "extension-independent retained-controller initialization"
 paths = ["src/lib.rs", "src/native_controller_init.rs", "src/webview2/mod.rs"]
 

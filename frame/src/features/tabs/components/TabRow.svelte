@@ -13,9 +13,9 @@
   import { favicons } from "$domain/favicons";
   import Icon from "$shared/ui/Icon";
   import CaptureControl from "$shared/ui/CaptureControl";
+  import { tabGestures } from "$session/tab-gestures";
   import AudioControl from "$shared/ui/AudioControl";
   import { tabs } from "$domain/tabs";
-  import { closeOnMiddleClick } from "../lib/middle-click";
 
   let {
     cascade = 0,
@@ -57,6 +57,23 @@
     onClose(tab.id);
   }
 
+  let draft = $state("");
+  let renaming = $derived(tabs.renaming() === tab.id);
+
+  function startRename(node: HTMLInputElement) {
+    draft = tab.title;
+    node.focus();
+    node.select();
+  }
+
+  // An emptied name gives the tab back its page title.
+  function finishRename(keep: boolean) {
+    if (!renaming) return;
+    tabs.stopRenaming();
+    const name = draft.trim();
+    if (keep && name !== tab.title) tabs.rename(tab.id, name);
+  }
+
   // A tab with no page yet is a different thing from a page whose site simply
   // supplies no icon, and the row should say which.
   let fallback = $derived(tabFallbackIcon(tab.content));
@@ -73,34 +90,64 @@
   class={["browse-tab", grouped && "browse-tab-grouped", className]}
   data-selected={active}
   data-split-candidate={splitCandidate}
+  data-sleeping={tabs.asleep(tab) || undefined}
   data-cascade={cascade < CASCADE_ROWS || undefined}
   style:--cascade={cascade}
 >
-  <button
-    type="button"
-    class="tab-open"
-    style:padding-inline-start={`${indent}px`}
-    aria-current={active ? "page" : undefined}
-    aria-label={tab.title || m.untitled_tab()}
-    oncontextmenu={(event) => onContextMenu(event, tab)}
-    onpointerdown={(event) => onPointerDown(event, tab)}
-    onpointermove={onPointerMove}
-    onpointerup={onPointerUp}
-    onpointercancel={onPointerCancel}
-    onclick={() => onSelect(tab.id)}
-    {...closable ? closeOnMiddleClick(() => onClose(tab.id)) : {}}
-  >
-    <FavIcon
-      image={favicons.image(tab.icon)}
-      tone={favicons.tone(tab.icon)}
-      loading={tab.loading}
-      size={16}
-      lit={active}
-      {fallback}
-      notched={!!tab.audio}
-    />
-    <span data-zephium-tab-label class="tab-label">{tab.title}</span>
-  </button>
+  {#if renaming}
+    <span class="tab-open" style:padding-inline-start={`${indent}px`}>
+      <FavIcon
+        image={favicons.image(tab.icon)}
+        tone={favicons.tone(tab.icon)}
+        size={16}
+        lit={active}
+        {fallback}
+      />
+      <input
+        class="tab-rename"
+        aria-label={m.tab_rename()}
+        placeholder={m.tab_rename_placeholder()}
+        maxlength={256}
+        bind:value={draft}
+        use:startRename
+        onkeydown={(event) => {
+          if (event.key === "Enter") finishRename(true);
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            finishRename(false);
+          }
+        }}
+        onblur={() => finishRename(true)}
+      />
+    </span>
+  {:else}
+    <button
+      type="button"
+      class="tab-open"
+      style:padding-inline-start={`${indent}px`}
+      aria-current={active ? "page" : undefined}
+      aria-label={tabs.label(tab)}
+      oncontextmenu={(event) => onContextMenu(event, tab)}
+      onpointerdown={(event) => onPointerDown(event, tab)}
+      onpointermove={onPointerMove}
+      onpointerup={onPointerUp}
+      onpointercancel={onPointerCancel}
+      onclick={() => onSelect(tab.id)}
+      {...tabGestures(tab.id)}
+    >
+      <FavIcon
+        image={favicons.image(tab.icon)}
+        tone={favicons.tone(tab.icon)}
+        loading={tab.loading}
+        sleeping={tabs.asleep(tab)}
+        size={16}
+        lit={active}
+        {fallback}
+        notched={!!tab.audio}
+      />
+      <span data-zephium-tab-label class="tab-label">{tab.title}</span>
+    </button>
+  {/if}
   {#if tab.audio}
     <AudioControl
       audio={tab.audio}
@@ -202,6 +249,21 @@
     outline-offset: -2px;
   }
 
+  .tab-rename {
+    flex: 1;
+    min-width: 0;
+    height: 22px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: var(--radius-field);
+    background: var(--color-field-hover);
+    box-shadow: var(--shadow-field-focus);
+    color: var(--color-text);
+    font: inherit;
+    outline: none;
+    user-select: text;
+  }
+
   /*
     A title clipped with an ellipsis reads as a failure; the same title
     dissolving into the row's edge reads as a deliberate edge. The fade is
@@ -219,6 +281,11 @@
 
   .tab-label:dir(rtl) {
     mask-image: var(--mask-fade-end-rtl);
+  }
+
+  /* A sleeping page's title steps back with its mark, until it is opened. */
+  .browse-tab[data-sleeping] .tab-label {
+    color: var(--color-faint);
   }
 
   /* While the close control shows, the title dissolves before it rather than

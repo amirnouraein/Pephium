@@ -326,6 +326,35 @@ pub fn work_area(window: &WebviewWindow) -> Option<Work> {
     })
 }
 
+/// The usable area of the display a browser window is mostly on, with the
+/// window's frame as `[x, y, width, height]` from that area's top-left corner.
+pub fn work_area_over(browser: &WebviewWindow) -> Option<(Work, [f64; 4])> {
+    let mut found = None;
+    with_window(browser, |window| {
+        let Some(screen) = window.screen() else {
+            return;
+        };
+        let visible = screen.visibleFrame();
+        let frame = window.frame();
+        let top = visible.origin.y + visible.size.height;
+        found = Some((
+            Work {
+                left: visible.origin.x,
+                top,
+                width: visible.size.width,
+                height: visible.size.height,
+            },
+            [
+                frame.origin.x - visible.origin.x,
+                top - (frame.origin.y + frame.size.height),
+                frame.size.width,
+                frame.size.height,
+            ],
+        ));
+    });
+    found
+}
+
 fn holds(rect: NSRect, point: NSPoint, inclusive: bool) -> bool {
     let within = |value: f64, start: f64, length: f64| {
         value >= start && (value < start + length || (inclusive && value == start + length))

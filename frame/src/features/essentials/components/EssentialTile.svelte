@@ -6,6 +6,7 @@
   import Icon from "$shared/ui/Icon";
   import { favicons } from "$domain/favicons";
   import CaptureControl from "$shared/ui/CaptureControl";
+  import { tabGestures } from "$session/tab-gestures";
   import AudioControl from "$shared/ui/AudioControl";
   import { tabs } from "$domain/tabs";
 
@@ -71,19 +72,21 @@
     type="button"
     data-plate
     aria-current={active ? "page" : undefined}
-    aria-label={name}
-    title={name}
+    aria-label={tabs.label(tab)}
+    title={tabs.label(tab)}
     oncontextmenu={(event) => onContextMenu(event, tab)}
     onpointerdown={(event) => onPointerDown(event, tab)}
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}
     onpointercancel={onPointerCancel}
     onclick={() => onSelect(tab.id)}
+    {...tabGestures(tab.id)}
   >
     <FavIcon
       image={favicons.image(tab.icon)}
       tone={favicons.tone(tab.icon)}
       loading={tab.loading}
+      sleeping={tabs.asleep(tab)}
       size={18}
       lit
       fallback={Globe02Icon}

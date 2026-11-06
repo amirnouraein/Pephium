@@ -2,6 +2,7 @@
   import * as m from "$shared/i18n/messages";
   import PreferenceSelect from "../PreferenceSelect.svelte";
   import ImportBrowserData from "../ImportBrowserData.svelte";
+  import SidebarFile from "../SidebarFile.svelte";
   import ExportBrowserData from "../ExportBrowserData.svelte";
   import DownloadPreferences from "../DownloadPreferences.svelte";
   import LoginItemRow from "../LoginItemRow.svelte";
@@ -67,6 +68,7 @@
 <SettingsGroup title={m.section_languages()}><LanguageRow /></SettingsGroup>
 <SettingsGroup title={m.general_data_group()}>
   <ImportBrowserData />
+  <SidebarFile />
   <ExportBrowserData />
 </SettingsGroup>
 <DownloadPreferences />

@@ -592,16 +592,33 @@ impl Overlay {
         self.state().closed = true;
         idle::destroyed();
     }
-    /// Places the launcher on the display under the pointer, where the user is
-    /// looking, at the same height every time. Everything is in points: the
-    /// pointer, the displays and the frame are AppKit's own, so displays of
-    /// different scale are never converted between.
+    /// The browser window the user is working in: focused, or behind the
+    /// focused launcher. None when the launcher is summoned over another app.
+    fn focused_browser(&self) -> Option<WebviewWindow> {
+        let main = self
+            .window
+            .app_handle()
+            .get_webview_window(crate::MAIN_LABEL)?;
+        let focused =
+            main.is_focused().unwrap_or(false) || self.window.is_focused().unwrap_or(false);
+        (focused && main.is_visible().unwrap_or(false) && !main.is_minimized().unwrap_or(true))
+            .then_some(main)
+    }
+    /// Places the launcher over the focused browser window, else on the
+    /// display under the pointer, where the user is looking. Everything is in
+    /// points: the pointer, the displays and the frame are AppKit's own, so
+    /// displays of different scale are never converted between.
     #[cfg(target_os = "macos")]
     fn place(&self) {
-        let Some(work) = crate::panel::work_area(&self.window) else {
+        let Some((work, over)) = self
+            .focused_browser()
+            .and_then(|browser| crate::panel::work_area_over(&browser))
+            .map(|(work, frame)| (work, Some(frame)))
+            .or_else(|| crate::panel::work_area(&self.window).map(|work| (work, None)))
+        else {
             return;
         };
-        let placement = geometry::Placement::new(
+        let placement = geometry::Placement::over(
             work.width,
             work.height,
             if animated_shapes() {
@@ -609,6 +626,7 @@ impl Overlay {
             } else {
                 0.0
             },
+            over.unwrap_or([0.0, 0.0, work.width, work.height]),
         );
         let height = placement.height(self.state().content_height);
         crate::panel::place(
@@ -620,16 +638,22 @@ impl Overlay {
         );
         self.state().placement = Some(placement);
     }
-    /// Places the launcher on the display under the pointer, where the user is
-    /// looking, at the same height every time.
+    /// Places the launcher over the focused browser window, else on the
+    /// display under the pointer, where the user is looking.
     #[cfg(not(target_os = "macos"))]
     fn place(&self) {
-        let monitor = self
-            .window
-            .app_handle()
-            .cursor_position()
-            .ok()
-            .and_then(|cursor| {
+        let browser = self.focused_browser().and_then(|browser| {
+            Some((
+                browser.current_monitor().ok()??,
+                browser.outer_position().ok()?,
+                browser.outer_size().ok()?,
+            ))
+        });
+        let monitor = browser
+            .as_ref()
+            .map(|(monitor, ..)| monitor.clone())
+            .or_else(|| {
+                let cursor = self.window.app_handle().cursor_position().ok()?;
                 self.window
                     .available_monitors()
                     .ok()?
@@ -652,7 +676,23 @@ impl Overlay {
             return;
         }
         let work = monitor.work_area();
-        let placement = geometry::Placement::new(
+        let over = browser.map_or(
+            [
+                0.0,
+                0.0,
+                f64::from(work.size.width) / scale,
+                f64::from(work.size.height) / scale,
+            ],
+            |(_, position, size)| {
+                [
+                    f64::from(position.x - work.position.x) / scale,
+                    f64::from(position.y - work.position.y) / scale,
+                    f64::from(size.width) / scale,
+                    f64::from(size.height) / scale,
+                ]
+            },
+        );
+        let placement = geometry::Placement::over(
             f64::from(work.size.width) / scale,
             f64::from(work.size.height) / scale,
             if animated_shapes() {
@@ -660,6 +700,7 @@ impl Overlay {
             } else {
                 0.0
             },
+            over,
         );
         let height = placement.height(self.state().content_height);
         // Windows rescales a window that lands on a display of another scale,
