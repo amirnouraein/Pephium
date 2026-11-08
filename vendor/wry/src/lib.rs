@@ -1969,6 +1969,8 @@ pub(crate) struct PlatformSpecificWebViewAttributes {
   #[cfg(target_os = "macos")]
   autofill_button_handler: Option<Box<dyn Fn()>>,
   #[cfg(target_os = "macos")]
+  media_return_handler: Option<Box<dyn Fn()>>,
+  #[cfg(target_os = "macos")]
   context_menu_handler: Option<
     Box<
       dyn Fn(
@@ -2012,6 +2014,8 @@ impl Default for PlatformSpecificWebViewAttributes {
       native_download_handler: None,
       #[cfg(target_os = "macos")]
       autofill_button_handler: None,
+      #[cfg(target_os = "macos")]
+      media_return_handler: None,
       #[cfg(target_os = "macos")]
       context_menu_handler: None,
       #[cfg(target_os = "macos")]
@@ -2134,6 +2138,10 @@ pub trait WebViewBuilderExtMacos {
   /// field. Only a script in a content world allowed to drive AutoFill can
   /// show that button; page script cannot.
   fn with_autofill_button_handler(self, handler: impl Fn() + 'static) -> Self;
+  /// Called when a video presented outside the page, such as in picture in
+  /// picture, asks to return to it. WebKit puts the video back only once the
+  /// page is visible again, so the embedder should bring the page on screen.
+  fn with_media_return_handler(self, handler: impl Fn() + 'static) -> Self;
   /// Merges browser-owned items into the native page context menu without
   /// serializing page metadata through Rust. The callback receives WebKit's
   /// already-created default menu and may replace or suppress it.
@@ -2226,6 +2234,11 @@ impl WebViewBuilderExtMacos for WebViewBuilder<'_> {
 
   fn with_autofill_button_handler(mut self, handler: impl Fn() + 'static) -> Self {
     self.platform_specific.autofill_button_handler = Some(Box::new(handler));
+    self
+  }
+
+  fn with_media_return_handler(mut self, handler: impl Fn() + 'static) -> Self {
+    self.platform_specific.media_return_handler = Some(Box::new(handler));
     self
   }
 

@@ -313,6 +313,11 @@
       if (findInPage.isOpen() && findInPage.searching() !== active) findInPage.hide();
     });
   });
+  let sidebarBody = $state<ReturnType<typeof SidebarBody>>();
+  function selectEssential(id: string) {
+    sidebarBody?.clearSelection();
+    selectTab(id);
+  }
   function selectTab(id: string) {
     if (splitting) {
       tabs.split(id);
@@ -396,7 +401,13 @@
             {#if splitting}<p class="shrink-0 px-3 pb-1 text-[12px] text-accent" aria-live="polite">
                 {m.choose_split()}
               </p>{/if}
-            <SidebarBody pinned={tree.pinned} today={tree.today} {splitting} onSelect={selectTab}>
+            <SidebarBody
+              bind:this={sidebarBody}
+              pinned={tree.pinned}
+              today={tree.today}
+              {splitting}
+              onSelect={selectTab}
+            >
               {#snippet extras()}<PinnedExtensions />{/snippet}
             </SidebarBody>
             <!-- Brief notices and downloads sit at the foot of the column, by the dock. -->
@@ -445,7 +456,7 @@
                 columns={dockColumns}
                 label={m.essentials()}
                 {splitting}
-                onSelect={selectTab}
+                onSelect={selectEssential}
                 >{#snippet essentialTile(props)}<EssentialTile {...props} />{/snippet}</TabList
               >
             </div>
@@ -467,7 +478,7 @@
                 variant="essentials"
                 label={m.essentials()}
                 {splitting}
-                onSelect={selectTab}
+                onSelect={selectEssential}
                 >{#snippet essentialTile(props)}<EssentialTile {...props} />{/snippet}</TabList
               >
             </div>

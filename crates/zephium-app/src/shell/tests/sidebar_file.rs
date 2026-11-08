@@ -24,7 +24,7 @@ fn import(shell: &mut Shell, file: SidebarFile) -> Option<u32> {
             let _ = send.send(added);
         }),
     });
-    receive.recv().unwrap()
+    receive.recv().unwrap().map(|(added, _)| added)
 }
 
 fn work_space() -> SidebarSpace {
