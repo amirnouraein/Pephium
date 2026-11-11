@@ -115,7 +115,7 @@
     // in this list among them.
     reorder: () =>
       variant === "list" && (section === "today" || section === "pinned") ? section : null,
-    drop: ({ id, x, y, over, before }) => {
+    drop: ({ id, x, y, over, before, page }) => {
       const to: tabDrag.Destination | null = over?.closest("[data-essentials-drop]")
         ? "essentials"
         : over?.closest("[data-pinned-drop]")
@@ -138,7 +138,7 @@
         void tabDrag.place(id, to, before);
         return;
       }
-      tabs.dropTab(id, x, y);
+      if (page) tabs.dropTab(id, x, y);
     },
   });
   const handlePointerDown = (event: PointerEvent, tab: TabView) => {

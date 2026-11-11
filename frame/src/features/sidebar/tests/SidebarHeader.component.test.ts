@@ -11,6 +11,7 @@ import SidebarHeader from "../components/SidebarHeader.svelte";
 const native = vi.hoisted(() => ({
   reload: vi.fn(async () => ({ accepted: true, operation_id: null })),
   duplicate: vi.fn(async () => ({ accepted: true, operation_id: null })),
+  switcher: vi.fn(async () => true),
   menu: vi.fn(async (..._args: unknown[]) => true),
   kind: "default" as "default" | "incognito",
 }));
@@ -30,6 +31,7 @@ vi.mock("$shared/ipc/bindings", async () => {
     sidebarMenuPopup: native.menu,
     tabsReload: native.reload,
     tabsDuplicate: native.duplicate,
+    tabSwitcherOpen: native.switcher,
   });
 });
 
@@ -111,4 +113,13 @@ test("Reload reloads the active tab on a click and duplicates it on a middle-cli
   const press = new MouseEvent("mousedown", { button: 1, bubbles: true, cancelable: true });
   reload.element().dispatchEvent(press);
   expect(press.defaultPrevented).toBe(true);
+});
+
+test("the header leaves switching tabs to its keys", async () => {
+  for (const compact of [false, true]) {
+    const screen = await render(SidebarHeader, { compact, ontoggle: () => {} });
+    expect(screen.container.querySelector('[aria-label="Switch tabs"]')).toBeNull();
+    await screen.unmount();
+  }
+  expect(native.switcher).not.toHaveBeenCalled();
 });
