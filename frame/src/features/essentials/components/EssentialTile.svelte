@@ -9,6 +9,7 @@
   import { tabGestures } from "$session/tab-gestures";
   import AudioControl from "$shared/ui/AudioControl";
   import { tabs } from "$domain/tabs";
+  import { tabLabel } from "$session/tab-label";
 
   let {
     tab,
@@ -72,8 +73,8 @@
     type="button"
     data-plate
     aria-current={active ? "page" : undefined}
-    aria-label={tabs.label(tab)}
-    title={tabs.label(tab)}
+    aria-label={tabLabel(tab)}
+    title={tabLabel(tab)}
     oncontextmenu={(event) => onContextMenu(event, tab)}
     onpointerdown={(event) => onPointerDown(event, tab)}
     onpointermove={onPointerMove}

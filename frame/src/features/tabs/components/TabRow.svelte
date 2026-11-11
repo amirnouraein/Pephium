@@ -16,6 +16,7 @@
   import { tabGestures } from "$session/tab-gestures";
   import AudioControl from "$shared/ui/AudioControl";
   import { tabs } from "$domain/tabs";
+  import { tabLabel } from "$session/tab-label";
 
   let {
     cascade = 0,
@@ -132,7 +133,7 @@
       style:padding-inline-start={`${indent}px`}
       aria-current={active ? "page" : undefined}
       aria-pressed={multiSelecting ? selected : undefined}
-      aria-label={tabs.label(tab)}
+      aria-label={tabLabel(tab)}
       oncontextmenu={(event) => onContextMenu(event, tab)}
       onpointerdown={(event) => onPointerDown(event, tab)}
       onpointermove={onPointerMove}

@@ -7,6 +7,7 @@
   import DragMark from "$shared/ui/DragMark";
   import { Globe02Icon } from "@hugeicons/core-free-icons";
   import { tabs } from "$domain/tabs";
+  import { tabLabel } from "$session/tab-label";
   import type { TabView } from "$shared/ipc/bindings";
   import FavIcon from "$shared/ui/FavIcon";
   import CaptureControl from "$shared/ui/CaptureControl";
@@ -78,9 +79,9 @@
         type="button"
         class="rail-site"
         data-plate
-        title={tabs.label(tab)}
+        title={tabLabel(tab)}
         aria-current={active ? "page" : undefined}
-        aria-label={tabs.label(tab)}
+        aria-label={tabLabel(tab)}
         oncontextmenu={(event) => handleContextMenu(event, tab)}
         onpointerdown={(event) => drag.down(event, tab.id)}
         onpointermove={(event) => drag.move(event)}

@@ -6,7 +6,6 @@ import { settle } from "$domain/operations";
 import { commands } from "$shared/ipc/bindings";
 import { events } from "$shared/ipc/native-events";
 import { TabProjectionModel } from "./tabs-model";
-import * as m from "$shared/i18n/messages";
 
 const model = new TabProjectionModel();
 let state = $state.raw<ItemsState>(model.value);
@@ -121,12 +120,6 @@ export const duplicate = (id: string) => void commands.tabsDuplicate(id);
 export const returnHome = (id: string) => void commands.tabsReturnHome(id);
 /** Unloaded until it is opened again: suspended, or slept for being idle. */
 export const asleep = (tab: TabView) => tab.availability?.state === "sleeping";
-
-/** What a tab is called to the person, saying when it is asleep. */
-export function label(tab: TabView) {
-  const title = tab.title || m.untitled_tab();
-  return asleep(tab) ? m.tab_sleeping_named({ title }) : title;
-}
 
 /** Shows `name` in place of the page title; an empty one gives it back. */
 export const rename = (id: string, name: string) => void commands.tabsRename(id, name);

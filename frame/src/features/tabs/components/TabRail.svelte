@@ -2,6 +2,7 @@
   import { rememberScroll } from "$shared/ui/scroll-memory";
   import type { TabView } from "$shared/ipc/bindings";
   import { tabs } from "$domain/tabs";
+  import { tabLabel } from "$session/tab-label";
   import FavIcon from "$shared/ui/FavIcon";
   import { favicons } from "$domain/favicons";
   import { Add01Icon, Cancel01Icon, GridViewIcon } from "@hugeicons/core-free-icons";
@@ -167,9 +168,9 @@
               type="button"
               class="rail-item"
               data-plate
-              title={tabs.label(tab)}
+              title={tabLabel(tab)}
               aria-current={active ? "page" : undefined}
-              aria-label={tabs.label(tab)}
+              aria-label={tabLabel(tab)}
               oncontextmenu={(event) => handleContextMenu(event, tab)}
               onpointerdown={(event) => drag.down(event, tab.id)}
               onpointermove={(event) => drag.move(event)}
