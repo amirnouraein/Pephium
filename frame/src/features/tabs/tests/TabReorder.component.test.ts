@@ -3,7 +3,7 @@ import { page } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import { flushSync } from "svelte";
 import "$styles/global.css";
-import type { SidebarNodeView } from "$shared/ipc/bindings";
+import type { SidebarNodeView, SidebarSectionView } from "$shared/ipc/bindings";
 import { emitNativeEvent } from "$shared/testing/native-events";
 import { revision, tabFixture } from "$shared/testing/fixtures";
 import { tabs } from "$domain/tabs";
@@ -12,6 +12,7 @@ import { sidebarTree } from "../lib/sidebar-model";
 
 const native = vi.hoisted(() => ({
   setEssential: vi.fn(async () => ({ accepted: true, operation_id: null })),
+  setPinned: vi.fn(async () => ({ accepted: true, operation_id: null })),
   split: vi.fn(async () => ({ accepted: true, operation_id: null })),
 }));
 
@@ -20,6 +21,7 @@ vi.mock("$shared/ipc/bindings", async () => {
   return mockBindings({
     tabsBootstrap: async () => {},
     tabsSetEssential: native.setEssential,
+    tabsSetPinned: native.setPinned,
     tabsSplit: native.split,
     tabDragOver: async () => undefined,
     tabDrop: async () => ({ accepted: true, operation_id: null }),
@@ -33,11 +35,12 @@ vi.mock("$domain/operations", () => ({
 afterEach(() => {
   tabs.dispose();
   native.setEssential.mockClear();
+  native.setPinned.mockClear();
 });
 
 const open = ["a", "b", "c", "d"].map((id) => tabFixture({ id, title: `Tab ${id}` }));
 
-async function list(section: "today" | "pinned" = "today") {
+async function list(section: SidebarSectionView = "today") {
   await page.viewport(400, 400);
   await tabs.init();
   const nodes: SidebarNodeView[] = open.map((tab) => ({
@@ -147,7 +150,9 @@ test("letting go in the room below the last row drops the tab at the end", async
 });
 
 test("a tab carried out of its list shows a card with its title, and the far half of the last row means after it", async () => {
-  const { row } = await list("pinned");
+  // Kept sites drawn as a list do not reorder in place, so every drop is
+  // placed by the row it lands on.
+  const { row } = await list("favorites");
   const handle = row("a").querySelector<HTMLElement>(".tab-open")!;
   const last = row("d").getBoundingClientRect();
   const upper = { x: last.left + 40, y: last.top + 4 };
@@ -173,4 +178,42 @@ test("a tab carried out of its list shows a card with its title, and the far hal
   );
   await expect.poll(() => native.setEssential.mock.calls.length).toBe(2);
   expect(native.setEssential).toHaveBeenLastCalledWith("a", false, null);
+});
+
+test("pinned rows reorder among themselves and stay pinned", async () => {
+  const { row } = await list("pinned");
+  const handle = row("a").querySelector<HTMLElement>(".tab-open")!;
+  const target = row("c").getBoundingClientRect();
+  const { init } = drag(handle, { x: target.left + 20, y: target.bottom - 4 });
+  await frame();
+  handle.dispatchEvent(
+    new PointerEvent("pointerup", {
+      ...init,
+      clientX: target.left + 20,
+      clientY: target.bottom - 4,
+    }),
+  );
+  await expect.poll(() => native.setPinned.mock.calls.length).toBe(1);
+  expect(native.setPinned).toHaveBeenCalledWith("a", true, "d");
+  expect(native.setEssential).not.toHaveBeenCalled();
+});
+
+test("an open tab let go on a pinned row is pinned before it", async () => {
+  const { row, screen } = await list();
+  const pinned = document.createElement("nav");
+  pinned.setAttribute("data-pinned-drop", "");
+  const slot = document.createElement("div");
+  slot.dataset.zephiumTabId = "elsewhere";
+  slot.style.height = "30px";
+  pinned.append(slot);
+  screen.container.prepend(pinned);
+  const handle = row("b").querySelector<HTMLElement>(".tab-open")!;
+  const over = slot.getBoundingClientRect();
+  const to = { x: over.left + 20, y: over.top + 4 };
+  const { init } = drag(handle, to);
+  await frame();
+  handle.dispatchEvent(new PointerEvent("pointerup", { ...init, clientX: to.x, clientY: to.y }));
+  await expect.poll(() => native.setPinned.mock.calls.length).toBe(1);
+  expect(native.setPinned).toHaveBeenCalledWith("b", true, "elsewhere");
+  expect(native.setEssential).not.toHaveBeenCalled();
 });

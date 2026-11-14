@@ -69,6 +69,8 @@ pub(crate) fn set_language(preference: Option<&str>) -> bool {
         let (_, text) = DICTIONARIES.iter().find(|(known, _)| *known == locale)?;
         Some((locale, serde_json::from_str(text).ok()?))
     });
+    drop(shown);
+    zephium_engine::set_scroll_to_top_label(label("Scroll to Top"));
     true
 }
 

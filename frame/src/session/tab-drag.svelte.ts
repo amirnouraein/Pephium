@@ -6,6 +6,8 @@ let over = $state(false);
 let failed = $state(false);
 let pending = false;
 let gesture = 0;
+/** Where a dropped tab goes: the kept sites, the space's pinned tabs, or its open ones. */
+export type Destination = "essentials" | "pinned" | "today";
 export const draggedId = () => id;
 export const overEssentials = () => over;
 export const moveFailed = () => failed;
@@ -36,10 +38,10 @@ export function end() {
       if (generation === gesture) failed = true;
     });
 }
-/** Takes a tab out of the split it is in, then places it as `move` would. */
+/** Takes a tab out of the split it is in, then places it as `place` would. */
 export async function leaveSplit(
   value: string,
-  place: { essential: boolean; before: string | null } | null,
+  target: { to: Destination; before: string | null } | null,
 ) {
   if (pending) return;
   pending = true;
@@ -53,15 +55,23 @@ export async function leaveSplit(
   } finally {
     pending = false;
   }
-  if (place) await move(value, place.essential, place.before);
+  if (target) await place(value, target.to, target.before);
 }
 
-export async function move(value: string, essential: boolean, before: string | null = null) {
+export function move(value: string, essential: boolean, before: string | null = null) {
+  return place(value, essential ? "essentials" : "today", before);
+}
+
+export async function place(value: string, to: Destination, before: string | null = null) {
   if (pending) return;
   pending = true;
   failed = false;
   try {
-    const result = await settle(commands.tabsSetEssential(value, essential, before), 5000);
+    const admission =
+      to === "pinned"
+        ? commands.tabsSetPinned(value, true, before)
+        : commands.tabsSetEssential(value, to === "essentials", before);
+    const result = await settle(admission, 5000);
     if (result.outcome === "failed" || result.outcome === "rejected") throw new Error("settlement");
   } catch {
     failed = true;

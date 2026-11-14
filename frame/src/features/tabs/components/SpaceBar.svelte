@@ -1,7 +1,7 @@
 <script lang="ts">
   import "$shared/ui/Menu/surface.css";
   import * as m from "$shared/i18n/messages";
-  import { Add01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
+  import { Add01Icon, ArrowDown01Icon, Delete02Icon, Moon02Icon } from "@hugeicons/core-free-icons";
   import { tabs } from "$domain/tabs";
   import { uiCommands as ui } from "$domain/ui-commands";
   import Icon from "$shared/ui/Icon";
@@ -73,7 +73,9 @@
 
 <!--
   The head of the tab list names the space it holds: its name, with its mark
-  when it has one, opens the switcher, and the plus opens a tab in it.
+  when it has one, opens the switcher. Beside it, the space's tabs can be put
+  to sleep or its open tabs cleared, pinned extensions sit, and the plus opens
+  a tab in it.
 -->
 <div class="space-bar" data-cascade data-under-panel style:--cascade={0} role="presentation">
   <button
@@ -93,10 +95,24 @@
     <span class="space-chevron"><Icon icon={ArrowDown01Icon} size={12} strokeWidth={2} /></span>
   </button>
   <div class="space-end">
+    <button
+      type="button"
+      class="space-action"
+      title={m.space_suspend_tabs()}
+      aria-label={m.space_suspend_tabs()}
+      onclick={tabs.suspendSpace}><Icon icon={Moon02Icon} size={15} /></button
+    >
+    <button
+      type="button"
+      class="space-action"
+      title={m.space_clear_tabs()}
+      aria-label={m.space_clear_tabs()}
+      onclick={tabs.clearSpace}><Icon icon={Delete02Icon} size={15} /></button
+    >
     {@render extras?.()}
     <button
       type="button"
-      class="space-new-tab"
+      class="space-action"
       title={m.new_tab()}
       aria-label={m.new_tab()}
       onclick={tabs.open}><Icon icon={Add01Icon} size={16} /></button
@@ -189,7 +205,7 @@
     margin-inline-start: auto;
   }
 
-  .space-new-tab {
+  .space-action {
     display: grid;
     flex: none;
     width: 30px;
@@ -207,14 +223,14 @@
       scale var(--motion-slow) var(--ease-spring);
   }
 
-  .space-new-tab:hover,
-  .space-new-tab:focus-visible {
+  .space-action:hover,
+  .space-action:focus-visible {
     outline: none;
     background: var(--row-hover);
     color: var(--color-text);
   }
 
-  .space-new-tab:active {
+  .space-action:active {
     scale: 0.92;
   }
 

@@ -38,6 +38,8 @@ pub struct WryWebViewIvars {
   #[cfg(target_os = "macos")]
   pub(crate) context_menu_handler:
     Option<Box<dyn Fn(&NSEvent, Option<Retained<NSMenu>>) -> Option<Retained<NSMenu>>>>,
+  #[cfg(target_os = "macos")]
+  pub(crate) will_open_menu_handler: Option<Box<dyn Fn(&WryWebView, &NSMenu)>>,
   #[cfg(target_os = "ios")]
   pub(crate) input_accessory_view_builder: Option<Box<crate::InputAccessoryViewBuilder>>,
   /// `Some` while the view's tracking areas are parked: the ones WebKit
@@ -162,6 +164,15 @@ define_class!(
         }))
         .unwrap_or(None)
       })()
+    }
+
+    #[cfg(target_os = "macos")]
+    #[unsafe(method(willOpenMenu:withEvent:))]
+    fn will_open_menu(&self, menu: &NSMenu, event: &NSEvent) {
+      unsafe { objc2::msg_send![super(self), willOpenMenu: menu, withEvent: event] }
+      if let Some(handler) = &self.ivars().will_open_menu_handler {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| handler(self, menu)));
+      }
     }
 
     #[cfg(target_os = "ios")]

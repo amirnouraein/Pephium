@@ -557,6 +557,8 @@ impl InnerWebView {
         accept_first_mouse: Bool::new(attributes.accept_first_mouse),
         #[cfg(target_os = "macos")]
         context_menu_handler: pl_attrs.context_menu_handler,
+        #[cfg(target_os = "macos")]
+        will_open_menu_handler: pl_attrs.will_open_menu_handler,
         #[cfg(target_os = "ios")]
         input_accessory_view_builder: pl_attrs.input_accessory_view_builder,
         #[cfg(target_os = "macos")]

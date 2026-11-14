@@ -60,6 +60,12 @@
   background: var(--favicon-plate);
 }
 
+/* A sleeping page steps further back than a resting one, lit or not, so it
+   reads as unloaded at a glance. */
+.favicon[data-sleeping] > * {
+  opacity: 0.4;
+}
+
 .favicon-fallback {
   display: grid;
   place-items: center;

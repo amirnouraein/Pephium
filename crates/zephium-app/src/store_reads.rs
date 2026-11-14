@@ -198,6 +198,9 @@ pub enum ImportWork {
     },
     History(Vec<zephium_core::ports::store::ImportedVisit>),
     Essentials(Vec<ImportedSite>),
+    /// Essentials and pinned tabs from a file Zephium wrote, merged into the
+    /// sidebar, which the shell owns.
+    Sidebar(zephium_core::sidebar_file::SidebarFile),
     /// Fixed 32x32 rasters by HTTPS origin, from the source browser's own
     /// icon cache. Stored only; listings read them when they need them.
     Icons(Vec<(String, Vec<u8>)>),
@@ -1182,7 +1185,7 @@ fn run_with(
                         .import_favicons(profile, icons)
                         .map(|added| (added, false)),
                     // The shell keeps these itself and never queues them.
-                    ImportWork::Essentials(_) => None,
+                    ImportWork::Essentials(_) | ImportWork::Sidebar(_) => None,
                 },
             },
             Request::Export {

@@ -2649,6 +2649,7 @@ mod projections;
 mod search;
 mod shutdown;
 mod sidebar_card;
+mod sidebar_file;
 mod site_permissions;
 mod spaces;
 mod tabs;

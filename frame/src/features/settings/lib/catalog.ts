@@ -180,6 +180,12 @@ export const fields = {
     description: m.pref_general_import_help,
     initial: "",
   },
+  "general.sidebar": {
+    section: "general",
+    label: m.sidebar_file_title,
+    description: m.sidebar_file_help,
+    initial: "",
+  },
   "general.export": {
     section: "general",
     label: m.pref_general_export,
