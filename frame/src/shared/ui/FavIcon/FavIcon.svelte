@@ -14,6 +14,8 @@
     lit?: boolean;
     /** Drawn when a site supplies no icon, or has not supplied one yet. */
     fallback?: IconSvgElement;
+    /** The page is asleep, unloaded until it is opened again. */
+    sleeping?: boolean;
     /** Cuts the corner a sound badge sits in. */
     notched?: boolean;
   };
@@ -25,6 +27,7 @@
     size = 17,
     lit = false,
     fallback,
+    sleeping = false,
     notched = false,
   }: Props = $props();
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -50,6 +53,7 @@
   class="favicon"
   data-favicon
   data-loading={loading}
+  data-sleeping={sleeping || undefined}
   data-notched={notched || undefined}
   style:width={`${size}px`}
   style:height={`${size}px`}

@@ -418,11 +418,12 @@ pub(crate) mod read {
         read_semantic_observation, ContextCapabilities, ContextCapability, ContextId,
         ContextIdentity, ContextJoin, ContextKind, ContextOperationId, ContextRegistry,
         ContextRunId, ContextSettlement, FrameId, SemanticCaptureInstant, SemanticFrameJoin,
-        SemanticFrameTrust, SemanticInvocationId, SemanticObservationAssembler,
-        SemanticObservationBudget, SemanticObservationId, SemanticObservationRequest,
-        SemanticOrigin, SemanticReadAuthority, SemanticReadBudget, SemanticReadContent,
-        SemanticReadField, SemanticReadSensitivityLimit, SemanticRole, SemanticRuntimeBudget,
-        SemanticRuntimeInvocation, SemanticSnapshot, SemanticSnapshotGeneration, SemanticState,
+        SemanticFrameTrust, SemanticFrameUnsupported, SemanticInvocationId,
+        SemanticObservationAssembler, SemanticObservationBudget, SemanticObservationId,
+        SemanticObservationRequest, SemanticOrigin, SemanticReadAuthority, SemanticReadBudget,
+        SemanticReadContent, SemanticReadField, SemanticReadSensitivityLimit, SemanticRole,
+        SemanticRuntimeBudget, SemanticRuntimeInvocation, SemanticSnapshot,
+        SemanticSnapshotGeneration, SemanticState,
     };
 
     use std::collections::HashMap;
@@ -516,9 +517,31 @@ pub(crate) mod read {
         captured_at_ms: u64,
         epoch: u64,
     ) -> Result<(Vec<PagePassage>, super::PageRead), PageReadFailure> {
+        // The reader reads the main frame alone; each iframe it holds (ads,
+        // widgets) is said to be unread, or the observation cannot finish.
+        let frames: Vec<_> = snapshot
+            .nodes()
+            .iter()
+            .filter(|node| node.role() == SemanticRole::FrameBoundary)
+            .map(|node| node.reference())
+            .collect();
         let observation = SemanticObservationAssembler::new(pending.request, snapshot)
-            .and_then(|assembler| assembler.finish())
-            .map_err(|_| PageReadFailure::Unavailable)?;
+            .and_then(|mut assembler| {
+                for frame in frames {
+                    assembler.mark_frame_unsupported(
+                        FrameId::MAIN,
+                        frame,
+                        SemanticFrameUnsupported::PlatformIsolationUnavailable,
+                    )?;
+                }
+                assembler.finish()
+            })
+            .map_err(|error| {
+                super::note(format_args!(
+                    "reader: read failed at=assemble error={error:?}"
+                ));
+                PageReadFailure::Unavailable
+            })?;
         let read = read_semantic_observation(
             &observation,
             SemanticReadAuthority::Initial,
@@ -526,7 +549,12 @@ pub(crate) mod read {
             SemanticReadSensitivityLimit::PublicOnly,
             SemanticReadBudget::EXTRACTION,
         )
-        .map_err(|_| PageReadFailure::Unavailable)?;
+        .map_err(|error| {
+            super::note(format_args!(
+                "reader: read failed at=extract error={error:?}"
+            ));
+            PageReadFailure::Unavailable
+        })?;
         let mut passages: Vec<(PagePassage, zephium_agentic::SemanticReferenceId)> = Vec::new();
         for fragment in read.fragments() {
             let reference = fragment.provenance().reference();
@@ -947,6 +975,22 @@ pub(crate) mod read {
                 .expect("heading");
             assert_eq!(heading.role, PageRole::Heading(1));
             assert!(heading.verbatim);
+        }
+
+        #[test]
+        fn a_page_with_iframes_reads_its_main_frame() {
+            let context = reader_context().expect("context");
+            let (invocation, pending) =
+                super::invocation(context, "https://shop.example.com/item", 5).expect("invocation");
+            let wire = r#"{"v":1,"i":5,"g":5,"c":"complete","n":[
+                {"k":1,"r":"document","o":16},
+                {"k":2,"p":0,"r":"heading","l":1,"n":"Keyboard"},
+                {"k":3,"p":0,"r":"frame_boundary"},
+                {"k":4,"p":0,"r":"frame_boundary"}
+            ]}"#;
+            let (passages, _) =
+                passages(pending, snapshot_for(&invocation, wire), 1, 7).expect("read");
+            assert!(passages.iter().any(|p| p.text == "Keyboard"));
         }
 
         #[test]

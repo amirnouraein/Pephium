@@ -38,6 +38,8 @@ fn tab(id: u128, space: SpaceId, url: &str) -> PersistedItem {
             title: "T".into(),
             zoom: 1.0,
             last_active_ms: None,
+            home: None,
+            name: None,
         },
     }
 }
@@ -317,6 +319,8 @@ fn sample() -> SessionState {
                     title: "Docs".into(),
                     zoom: 1.5,
                     last_active_ms: None,
+                    home: None,
+                    name: Some("Rust docs".into()),
                 },
             },
             tab(10, space, "https://example.com/"),
@@ -1383,6 +1387,12 @@ fn actor_boundary_retains_last_good_session_after_oversized_or_private_input() {
     };
     *title = "x".repeat(zephium_core::item::MAX_PAGE_TITLE_CHARS * 4 + 1);
     store.save_session(oversized);
+    let mut long_name = good.clone();
+    let PersistedKind::Tab { name, .. } = &mut long_name.items[1].kind else {
+        panic!("sample item changed kind")
+    };
+    *name = Some("x".repeat(zephium_core::session::MAX_SESSION_NAME_CHARS * 4 + 1));
+    store.save_session(long_name);
 
     assert_eq!(store.load_session(), loaded_session(good));
 }
@@ -3124,6 +3134,8 @@ fn maximum_valid_session_fits_snapshot_budget() {
                 title: "\\".repeat(zephium_core::item::MAX_PAGE_TITLE_CHARS),
                 zoom: 1.0,
                 last_active_ms: None,
+                home: None,
+                name: None,
             },
         })
         .collect();

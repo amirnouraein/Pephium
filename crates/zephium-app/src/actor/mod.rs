@@ -1277,6 +1277,7 @@ fn tracked_operation_command(command: &Command) -> bool {
             | Command::WorkPaneShow { .. }
             | Command::WorkPaneHide
             | Command::SetTabEssential { .. }
+            | Command::SetTabPinned { .. }
             | Command::KeepSite(_)
             | Command::ReleaseSite(_)
             | Command::RenameFocusedProfile(_)
@@ -1300,6 +1301,10 @@ fn tracked_operation_command(command: &Command) -> bool {
             | Command::Unsplit
             | Command::LeaveSplit(_)
             | Command::TabAction { .. }
+            | Command::ReturnHome(_)
+            | Command::RenameTab { .. }
+            | Command::ClearSpace
+            | Command::SuspendSpace
             | Command::Space(_)
             | Command::DropTab { .. }
             | Command::DividerRelease { .. }

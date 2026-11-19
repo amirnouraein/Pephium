@@ -341,6 +341,8 @@ fn decode_item(
             title: item.title.unwrap_or_default(),
             zoom: 1.0,
             last_active_ms: None,
+            home: None,
+            name: None,
         },
         _ => return None,
     };
@@ -383,6 +385,8 @@ fn decode_v1(v1: V1Session) -> Option<SessionState> {
                 title: t.title,
                 zoom: 1.0,
                 last_active_ms: None,
+                home: None,
+                name: None,
             },
         })
         .collect();

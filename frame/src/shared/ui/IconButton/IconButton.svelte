@@ -15,6 +15,8 @@
     controls,
     class: className = "",
     onclick,
+    onmousedown,
+    onauxclick,
     onmenu,
     pending = false,
     shape = "rounded",
@@ -33,6 +35,8 @@
     controls?: string;
     class?: string;
     onclick?: (event: MouseEvent) => void;
+    onmousedown?: (event: MouseEvent) => void;
+    onauxclick?: (event: MouseEvent) => void;
     /** Opens a menu for the button: on a right click, the context-menu key,
      *  or a press held in place. The click that ends a held press is not a
      *  click. Gets the button's box, for a menu to hang from. */
@@ -95,6 +99,8 @@
   aria-controls={controls}
   disabled={disabled || pending}
   aria-busy={pending || undefined}
+  {onmousedown}
+  {onauxclick}
   onclick={click}
   onpointerdown={press}
   onpointermove={drift}

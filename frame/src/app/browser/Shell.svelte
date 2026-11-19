@@ -314,9 +314,6 @@
   // Beside a tool the rail keeps only the current tab; the switcher holds the rest.
   let railCurrent = $derived(railTabs.filter((tab) => tab.id === tabs.activeId()));
   const openSwitcher = () => void commands.tabSwitcherOpen().catch(() => false);
-  let railClosable = $derived(
-    new Set(tree.today.flatMap((entry) => (entry.kind === "tab" ? [entry.tab.id] : []))),
-  );
 
   function linkCopied(copied: boolean) {
     if (copied) notices.show(m.notice_link_copied());
@@ -338,6 +335,7 @@
     untrack(() => {
       if (command.id === "split.choose") chooseSplit();
       if (command.id === "tab.copyLink") void tabs.copyMenuTargetLink().then(linkCopied);
+      if (command.id === "tab.rename") tabs.renameMenuTarget();
       if (command.id === "page.copyLink") void tabs.copyActiveLink().then(linkCopied);
       if (command.id === "tab.clearSiteData") clearRequest.ask(tabs.takeMenuTargetUrl());
       if (command.id === "page.clearSiteData") clearRequest.ask(tabs.activeTab()?.url);
@@ -477,7 +475,6 @@
           {#if compact}
             <TabRail
               entries={besideRail && !inWork ? railCurrent : railTabs}
-              closable={railClosable}
               onSelect={selectTab}
               switcher={besideRail && !inWork ? openSwitcher : undefined}
               spaces={!inWork}
